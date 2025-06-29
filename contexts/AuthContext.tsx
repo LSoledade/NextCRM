@@ -41,33 +41,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (insertError) {
           console.error('Erro ao criar perfil do usuário:', insertError);
-          throw insertError;
+          // Não lançar erro - deixar usuário continuar mesmo sem perfil completo
+          return false;
         } else {
           console.log('Perfil do usuário criado com sucesso');
+          return true;
         }
       } else if (fetchError) {
         console.error('Erro ao verificar usuário:', fetchError);
-        throw fetchError;
+        // Não lançar erro - deixar usuário continuar mesmo com erro de verificação
+        return false;
       } else {
         console.log('Perfil do usuário já existe');
+        return true;
       }
     } catch (error) {
       console.error('Erro inesperado ao garantir perfil do usuário:', error);
-      throw error;
+      // Não lançar erro - deixar usuário continuar mesmo com erro inesperado
+      return false;
     }
   };
   useEffect(() => {
     // Verificar sessão inicial
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const sessionUser = session?.user ?? null;
-      
-      if (sessionUser) {
-        await ensureUserProfile(sessionUser);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const sessionUser = session?.user ?? null;
+        
+        if (sessionUser) {
+          try {
+            await ensureUserProfile(sessionUser);
+          } catch (profileError) {
+            console.error('Erro ao garantir perfil do usuário:', profileError);
+            // Continuar mesmo com erro no perfil - usuário ainda pode estar autenticado
+          }
+        }
+        
+        setUser(sessionUser);
+      } catch (error) {
+        console.error('Erro ao obter sessão inicial:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setUser(sessionUser);
-      setLoading(false);
     };
 
     getInitialSession();
@@ -75,14 +91,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Escutar mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        const sessionUser = session?.user ?? null;
-        
-        if (sessionUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-          await ensureUserProfile(sessionUser);
+        try {
+          const sessionUser = session?.user ?? null;
+          
+          if (sessionUser && event === 'SIGNED_IN') {
+            try {
+              await ensureUserProfile(sessionUser);
+            } catch (profileError) {
+              console.error('Erro ao garantir perfil do usuário:', profileError);
+              // Continuar mesmo com erro no perfil - usuário ainda pode estar autenticado
+            }
+          }
+          
+          setUser(sessionUser);
+        } catch (error) {
+          console.error('Erro na mudança de estado de autenticação:', error);
+          setUser(null);
+        } finally {
+          setLoading(false);
         }
-        
-        setUser(sessionUser);
-        setLoading(false);
       }
     );
 

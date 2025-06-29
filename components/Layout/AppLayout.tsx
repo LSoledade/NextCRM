@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   Box,
   Drawer,
@@ -59,6 +59,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -79,7 +80,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const handleLogout = async () => {
     await signOut();
     handleProfileMenuClose();
-    router.push('/login');
+    router.replace('/login');
+    // Opcional: forçar reload para garantir estado limpo
+    // window.location.reload();
   };
 
   const handleNavigation = (path: string) => {
@@ -148,7 +151,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       {/* Lista de Navegação */}
       <List sx={{ flex: 1, px: 0.5, py: 1 }}>
         {menuItems.map((item) => {
-          const isSelected = typeof window !== 'undefined' && window.location.pathname === item.path;
+          const isSelected = pathname === item.path;
           
           const listItemButton = (
             <ListItemButton
