@@ -1,50 +1,51 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
-  Box,
-  Drawer,
-  AppBar,
-  Toolbar,
-  List,
-  Typography,
-  IconButton,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Avatar,
-  Menu,
-  MenuItem,
-  useTheme,
-  useMediaQuery,
-  Tooltip,
-  Collapse,
-} from '@mui/material';
-import {
+  LayoutDashboard,
+  Users,
+  ClipboardList,
+  Dumbbell,
+  GraduationCap,
+  Calendar,
+  UserCircle,
+  LogOut,
   Menu as MenuIcon,
-  Dashboard,
-  People,
-  Assignment,
-  FitnessCenter,
-  School,
-  Event,
-  AccountCircle,
-  Logout,
-} from '@mui/icons-material';
+  ChevronDown,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Collapse } from '@/components/ui/collapsible';
 import { useAuth } from '@/contexts/AuthContext';
+import { cn } from "@/lib/utils";
 
 const drawerWidth = 280;
 const drawerCollapsedWidth = 64;
 
 const menuItems = [
-  { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-  { text: 'Leads', icon: <People />, path: '/leads' },
-  { text: 'Tarefas', icon: <Assignment />, path: '/tasks' },
-  { text: 'Treinadores', icon: <FitnessCenter />, path: '/trainers' },
-  { text: 'Alunos', icon: <School />, path: '/students' },
-  { text: 'Sessões', icon: <Event />, path: '/sessions' },
+  { text: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { text: 'Leads', icon: Users, path: '/leads' },
+  { text: 'Tarefas', icon: ClipboardList, path: '/tasks' },
+  { text: 'Treinadores', icon: Dumbbell, path: '/trainers' },
+  { text: 'Alunos', icon: GraduationCap, path: '/students' },
+  { text: 'Sessões', icon: Calendar, path: '/sessions' },
 ];
 
 interface AppLayoutProps {
@@ -52,14 +53,19 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { user, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -69,20 +75,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setSidebarExpanded(!sidebarExpanded);
   };
 
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
-  };
-
   const handleLogout = async () => {
     await signOut();
-    handleProfileMenuClose();
     router.replace('/login');
-    // Opcional: forçar reload para garantir estado limpo
-    // window.location.reload();
   };
 
   const handleNavigation = (path: string) => {
@@ -92,433 +87,214 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
-  const currentDrawerWidth = sidebarExpanded ? drawerWidth : drawerCollapsedWidth;
+  const currentDrawerWidthClass = sidebarExpanded ? `w-[${drawerWidth}px]` : `w-[${drawerCollapsedWidth}px]`;
 
-  const drawer = (
-    <Box
-      sx={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: theme.palette.background.default,
-        transition: theme.transitions.create(['width'], {
-          easing: theme.transitions.easing.easeInOut,
-          duration: 150, // Animação mais rápida como Gmail
-        }),
-      }}
-    >
+  const drawerContent = (
+    <div className="flex h-full flex-col bg-background transition-all duration-150 ease-in-out">
       {/* Logo da Sidebar */}
-      <Box
-        sx={{
-          p: sidebarExpanded ? 2 : 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: sidebarExpanded ? 'flex-start' : 'center',
-          minHeight: 64,
-          transition: theme.transitions.create(['padding', 'justify-content'], {
-            easing: theme.transitions.easing.easeInOut,
-            duration: 150,
-          }),
-        }}
+      <div
+        className={cn(
+          "flex items-center min-h-[64px] transition-all duration-150 ease-in-out",
+          sidebarExpanded ? "justify-start p-4" : "justify-center p-2"
+        )}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <FitnessCenter 
-            color="primary" 
-            sx={{ 
-              fontSize: sidebarExpanded ? 28 : 24,
-              transition: theme.transitions.create(['font-size'], {
-                duration: 150,
-              }),
-            }} 
+        <div className="flex items-center gap-2">
+          <Dumbbell
+            className={cn(
+              "text-primary transition-all duration-150",
+              sidebarExpanded ? "h-7 w-7" : "h-6 w-6"
+            )}
           />
-          <Collapse in={sidebarExpanded} orientation="horizontal">
-            <Typography 
-              variant="h6" 
-              noWrap 
-              component="div" 
-              color="primary"
-              sx={{ 
-                fontWeight: 600,
-                fontSize: '1.1rem',
-              }}
-            >
+          {sidebarExpanded && (
+            <h1 className="text-lg font-semibold text-primary whitespace-nowrap">
               FavaleTrainer
-            </Typography>
-          </Collapse>
-        </Box>
-      </Box>
+            </h1>
+          )}
+        </div>
+      </div>
 
       {/* Lista de Navegação */}
-      <List sx={{ flex: 1, px: 0.5, py: 1 }}>
-        {menuItems.map((item) => {
-          const isSelected = pathname === item.path;
-          
-          const listItemButton = (
-            <ListItemButton
-              onClick={() => handleNavigation(item.path)}
-              selected={isSelected}
-              sx={{
-                borderRadius: sidebarExpanded ? 2 : 3,
-                mx: 0.5,
-                my: 0.25,
-                minHeight: 44,
-                justifyContent: sidebarExpanded ? 'initial' : 'center',
-                px: sidebarExpanded ? 2 : 0,
-                width: sidebarExpanded ? 'auto' : 52,
-                alignSelf: sidebarExpanded ? 'stretch' : 'center',
-                '&.Mui-selected': {
-                  backgroundColor: theme.palette.primary.main,
-                  color: 'white',
-                  '&:hover': {
-                    backgroundColor: theme.palette.primary.dark,
-                  },
-                  '& .MuiListItemIcon-root': {
-                    color: 'white',
-                  },
-                },
-                '&:hover': {
-                  backgroundColor: isSelected ? theme.palette.primary.dark : theme.palette.action.hover,
-                },
-                transition: theme.transitions.create([
-                  'background-color', 
-                  'padding', 
-                  'border-radius',
-                  'width',
-                  'margin'
-                ], {
-                  duration: 150,
-                  easing: theme.transitions.easing.easeInOut,
-                }),
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: sidebarExpanded ? 2 : 'auto',
-                  justifyContent: 'center',
-                  transition: theme.transitions.create(['margin'], {
-                    duration: 150,
-                  }),
-                  '& svg': {
-                    fontSize: '1.2rem',
-                  },
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
-              <Collapse in={sidebarExpanded} orientation="horizontal">
-                <ListItemText 
-                  primary={item.text}
-                  primaryTypographyProps={{
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                  }}
-                  sx={{
-                    ml: 0.5,
-                    '& .MuiListItemText-primary': {
-                      transition: theme.transitions.create(['opacity'], {
-                        duration: 150,
-                      }),
-                    },
-                  }}
-                />
-              </Collapse>
-            </ListItemButton>
-          );
+      <nav className="flex-1 px-2 py-4 space-y-1">
+        <TooltipProvider>
+          {menuItems.map((item) => {
+            const isSelected = pathname === item.path;
+            const IconComponent = item.icon;
 
-          return (
-            <ListItem key={item.text} disablePadding>
-              {!sidebarExpanded ? (
-                <Tooltip title={item.text} placement="right" arrow>
-                  {listItemButton}
-                </Tooltip>
-              ) : (
-                listItemButton
-              )}
-            </ListItem>
-          );
-        })}
-      </List>
-    </Box>
+            const navItem = (
+              <Button
+                variant={isSelected ? "default" : "ghost"}
+                className={cn(
+                  "w-full justify-start text-sm font-medium h-11",
+                  !sidebarExpanded && "justify-center px-0",
+                  isSelected && "bg-primary text-primary-foreground hover:bg-primary/90",
+                  !isSelected && "hover:bg-accent hover:text-accent-foreground"
+                )}
+                onClick={() => handleNavigation(item.path)}
+              >
+                <IconComponent className={cn("h-5 w-5", sidebarExpanded && "mr-3")} />
+                {sidebarExpanded && <span>{item.text}</span>}
+              </Button>
+            );
+
+            return (
+              <div key={item.text}>
+                {!sidebarExpanded ? (
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      {navItem}
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>{item.text}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  navItem
+                )}
+              </div>
+            );
+          })}
+        </TooltipProvider>
+      </nav>
+    </div>
   );
 
   if (isMobile) {
-    // Layout mobile mantém a estrutura original do MUI
+    // Layout mobile com Sheet
     return (
-      <Box sx={{ display: 'flex' }}>
-        <AppBar
-          position="fixed"
-          sx={{
-            backgroundColor: 'white',
-            color: theme.palette.text.primary,
-            boxShadow: 'none',
-          }}
-        >
-          <Toolbar>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2 }}
-            >
-              <MenuIcon />
-            </IconButton>
-            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-              CRM Personal Trainer
-            </Typography>
-            <IconButton
-              size="large"
-              edge="end"
-              aria-label="account of current user"
-              onClick={handleProfileMenuOpen}
-              color="inherit"
-            >
-              <Avatar sx={{ width: 32, height: 32 }}>
-                <AccountCircle />
-              </Avatar>
-            </IconButton>
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleProfileMenuClose}
-              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            >
-              <MenuItem onClick={handleProfileMenuClose}>
-                <ListItemIcon>
-                  <AccountCircle fontSize="small" />
-                </ListItemIcon>
+      <div className="flex flex-col h-screen">
+        <header className="sticky top-0 z-10 flex items-center justify-between h-16 px-4 border-b bg-background">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="md:hidden">
+                <MenuIcon className="w-6 h-6" />
+                <span className="sr-only">Abrir menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className={cn("w-[280px] p-0")}>
+              {drawerContent}
+            </SheetContent>
+          </Sheet>
+          <h1 className="text-lg font-semibold">CRM Personal Trainer</h1>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
+                  <AvatarFallback>
+                    {user?.displayName ? user.displayName.charAt(0).toUpperCase() : <UserCircle className="w-5 h-5" />}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="sr-only">User menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>{user?.displayName || 'Minha Conta'}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push('/profile')}> {/* Assuming a profile page */}
+                <UserCircle className="w-4 h-4 mr-2" />
                 Perfil
-              </MenuItem>
-              <MenuItem onClick={handleLogout}>
-                <ListItemIcon>
-                  <Logout fontSize="small" />
-                </ListItemIcon>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" />
                 Sair
-              </MenuItem>
-            </Menu>
-          </Toolbar>
-        </AppBar>
-        
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            '& .MuiDrawer-paper': { 
-              boxSizing: 'border-box', 
-              width: drawerWidth,
-              backgroundColor: theme.palette.background.default,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: 3,
-            mt: 8,
-            backgroundColor: theme.palette.background.default,
-          }}
-        >
-          <Box
-            sx={{
-              backgroundColor: 'white',
-              borderRadius: 3,
-              p: 3,
-              minHeight: 'calc(100vh - 120px)',
-            }}
-          >
-            {children}
-          </Box>
-        </Box>
-      </Box>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+        <main className="flex-1 p-4 overflow-auto bg-muted/40">
+          <div className="p-4 bg-background rounded-lg shadow min-h-[calc(100vh-8rem)]">
+             {children}
+          </div>
+        </main>
+      </div>
     );
   }
 
   // Layout desktop com CSS Grid e efeito visual moderno + sidebar expansível
   return (
-    <Box
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: `${currentDrawerWidth}px 1fr`,
-        gridTemplateRows: 'auto 1fr',
-        gridTemplateAreas: `
-          "sidebar header"
-          "sidebar content"
-        `,
-        height: '100vh', // Altura fixa da viewport
-        backgroundColor: theme.palette.background.default,
-        overflow: 'hidden', // Previne scroll no container principal
-        transition: theme.transitions.create(['grid-template-columns'], {
-          easing: theme.transitions.easing.easeInOut,
-          duration: 150, // Sincronizado com a sidebar
-        }),
-      }}
+    <div
+      className={cn(
+        "grid h-screen overflow-hidden bg-background transition-all duration-150 ease-in-out",
+        sidebarExpanded ? `grid-cols-[${drawerWidth}px_1fr]` : `grid-cols-[${drawerCollapsedWidth}px_1fr]`,
+        "grid-rows-[auto_1fr]",
+        "[grid-template-areas:_'sidebar_header'_'sidebar_content']"
+      )}
     >
       {/* Header - estilo Gmail */}
-      <Box
-        sx={{
-          gridArea: 'header',
-          backgroundColor: theme.palette.background.default,
-          px: 2,
-          py: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          minHeight: 64,
-        }}
+      <header
+        className={cn(
+          "sticky top-0 z-10 flex items-center justify-between min-h-[64px] px-4 py-2 bg-background",
+          "[grid-area:header]"
+        )}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {/* Botão de toggle no header - estilo Gmail */}
-          <IconButton
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={handleSidebarToggle}
-            sx={{
-              color: theme.palette.text.secondary,
-              width: 40,
-              height: 40,
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover,
-              },
-            }}
+            className="text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
-            <MenuIcon />
-          </IconButton>
-          
-          <Typography 
-            variant="h6" 
-            component="div" 
-            sx={{ 
-              fontWeight: 500,
-              color: theme.palette.text.primary,
-              fontSize: '1.1rem',
-            }}
-          >
+            <MenuIcon className="w-6 h-6" />
+            <span className="sr-only">Toggle sidebar</span>
+          </Button>
+          <h1 className="text-lg font-medium text-foreground">
             CRM Personal Trainer
-          </Typography>
-        </Box>
+          </h1>
+        </div>
         
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton
-            onClick={handleProfileMenuOpen}
-            sx={{
-              p: 0.5,
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover,
-              },
-            }}
-          >
-            <Avatar sx={{ width: 36, height: 36 }}>
-              <AccountCircle />
-            </Avatar>
-          </IconButton>
-          
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleProfileMenuClose}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            sx={{
-              '& .MuiPaper-root': {
-                borderRadius: 2,
-                mt: 1,
-                minWidth: 180,
-                boxShadow: theme.shadows[3],
-                border: `1px solid ${theme.palette.divider}`,
-              },
-            }}
-          >
-            <MenuItem 
-              onClick={handleProfileMenuClose}
-              sx={{ py: 1.5, px: 2 }}
-            >
-              <ListItemIcon>
-                <AccountCircle fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Perfil" />
-            </MenuItem>
-            <MenuItem 
-              onClick={handleLogout}
-              sx={{ py: 1.5, px: 2 }}
-            >
-              <ListItemIcon>
-                <Logout fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Sair" />
-            </MenuItem>
-          </Menu>
-        </Box>
-      </Box>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <Avatar className="w-9 h-9">
+                <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
+                <AvatarFallback>
+                  {user?.displayName ? user.displayName.charAt(0).toUpperCase() : <UserCircle className="w-5 h-5" />}
+                </AvatarFallback>
+              </Avatar>
+              <span className="sr-only">User menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>{user?.displayName || 'Minha Conta'}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push('/profile')}>
+              <UserCircle className="w-4 h-4 mr-2" />
+              Perfil
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
 
       {/* Sidebar Expansível */}
-      <Box
-        sx={{
-          gridArea: 'sidebar',
-          backgroundColor: theme.palette.background.default,
-          display: 'flex',
-          flexDirection: 'column',
-          width: currentDrawerWidth,
-          transition: theme.transitions.create(['width'], {
-            easing: theme.transitions.easing.easeInOut,
-            duration: 150,
-          }),
-          overflow: 'hidden', // Evita glitches durante a animação
-        }}
+      <aside
+        className={cn(
+          "flex flex-col overflow-hidden bg-background transition-all duration-150 ease-in-out",
+          currentDrawerWidthClass,
+          "[grid-area:sidebar]"
+        )}
       >
-        {drawer}
-      </Box>
+        {drawerContent}
+      </aside>
 
       {/* Conteúdo Principal com efeito visual */}
-      <Box
-        sx={{
-          gridArea: 'content',
-          p: 2,
-          pb: 3, // Margem inferior para dar o efeito flutuante
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%', // Usa toda a altura disponível
-          overflow: 'hidden', // O content area não rola
-          transition: theme.transitions.create(['margin'], {
-            easing: theme.transitions.easing.easeInOut,
-            duration: 150,
-          }),
-        }}
+      <main
+        className={cn(
+          "p-2 pb-3 flex flex-col h-full overflow-hidden transition-all duration-150 ease-in-out",
+          "[grid-area:content]"
+        )}
       >
-        <Box
-          sx={{
-            backgroundColor: 'white',
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-            borderBottomLeftRadius: 16,
-            borderBottomRightRadius: 16,
-            boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            height: '100%', // Usa toda a altura disponível do content area
-            overflow: 'hidden', // O card em si não rola
-          }}
+        <div
+          className="flex flex-col flex-1 h-full p-6 overflow-hidden bg-card rounded-lg shadow-sm"
         >
-          <Box
-            sx={{
-              p: 4,
-              pt: 3,
-              flex: 1,
-              height: '100%', // Garante que use toda a altura do card
-              overflow: 'auto', // Só o conteúdo interno rola
-              minHeight: 0, // Permite que o flexbox funcione corretamente
-            }}
-          >
+          <div className="flex-1 h-full overflow-auto">
             {children}
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

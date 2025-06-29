@@ -1,26 +1,24 @@
 'use client';
 
 import { useState } from 'react';
+import { Input } from '@/components/ui/input';
 import {
-  Box,
-  Grid,
-  TextField,
-  FormControl,
-  InputLabel,
   Select,
-  MenuItem,
-  Button,
-  Collapse,
-  Typography,
-  Chip,
-  IconButton,
-} from '@mui/material';
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import {
-  FilterList,
-  Clear,
-  ExpandMore,
-  ExpandLess,
-} from '@mui/icons-material';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Label } from '@/components/ui/label'; // For better form structure
+import { Badge } from '@/components/ui/badge'; // For active filter count
+import { Filter, XCircle, ChevronDown, ChevronUp, Search } from 'lucide-react'; // Replaced icons
+import { cn } from '@/lib/utils';
 
 interface FilterState {
   source: string;
@@ -107,206 +105,191 @@ export default function FilterPanel({
   };
 
   const hasActiveFilters = Object.values(filters).some(value => value !== '');
-  const activeFilterCount = Object.values(filters).filter(value => value !== '').length;
+  const activeFilterCount = Object.values(filters).filter(value => value !== '' && value !== undefined).length;
 
   return (
-    <Box sx={{ mb: 3 }}>
+    <Collapsible open={expanded} onOpenChange={setExpanded} className="mb-6 space-y-4">
       {/* Barra de Pesquisa e Filtros Básicos */}
-      <Box sx={{ mb: 2 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              placeholder="Pesquisar leads..."
-              value={searchTerm}
-              onChange={(e) => onSearchChange(e.target.value)}
-              size="small"
-            />
-          </Grid>
-          
-          <Grid item xs={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Origem</InputLabel>
-              <Select
-                value={filters.source}
-                label="Origem"
-                onChange={(e) => onFiltersChange({ ...filters, source: e.target.value })}
-              >
-                <MenuItem value="">Todas</MenuItem>
-                <MenuItem value="Favale">Favale</MenuItem>
-                <MenuItem value="Pink">Pink</MenuItem>
-                <MenuItem value="Instagram">Instagram</MenuItem>
-                <MenuItem value="Facebook">Facebook</MenuItem>
-                <MenuItem value="Site">Site</MenuItem>
-                <MenuItem value="Indicação">Indicação</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={filters.status}
-                label="Status"
-                onChange={(e) => onFiltersChange({ ...filters, status: e.target.value })}
-              >
-                <MenuItem value="">Todos</MenuItem>
-                <MenuItem value="New">Novo</MenuItem>
-                <MenuItem value="Contacted">Contatado</MenuItem>
-                <MenuItem value="Converted">Convertido</MenuItem>
-                <MenuItem value="Lost">Perdido</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Campanha</InputLabel>
-              <Select
-                value={filters.campaign}
-                label="Campanha"
-                onChange={(e) => onFiltersChange({ ...filters, campaign: e.target.value })}
-              >
-                <MenuItem value="">Todas</MenuItem>
-                <MenuItem value="Instagram">Instagram</MenuItem>
-                <MenuItem value="Facebook">Facebook</MenuItem>
-                <MenuItem value="Email">E-mail</MenuItem>
-                <MenuItem value="Site">Site</MenuItem>
-                <MenuItem value="Indicação">Indicação</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={6} md={2}>
-            <Button
-              fullWidth
-              variant={hasActiveFilters ? "contained" : "outlined"}
-              color="primary"
-              onClick={() => setExpanded(!expanded)}
-              endIcon={expanded ? <ExpandLess /> : <ExpandMore />}
-              startIcon={<FilterList />}
-              size="small"
-            >
-              Filtros
-              {hasActiveFilters && (
-                <Chip
-                  label={activeFilterCount}
-                  size="small"
-                  sx={{ ml: 1, height: 20 }}
-                />
-              )}
-            </Button>
-          </Grid>
-        </Grid>
-      </Box>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:items-end">
+        <div className="relative md:col-span-4">
+          <Search className="absolute w-4 h-4 left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Pesquisar leads (nome, email, telefone)..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <Label htmlFor="sourceFilter" className="sr-only">Origem</Label>
+          <Select
+            value={filters.source}
+            onValueChange={(value) => onFiltersChange({ ...filters, source: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger id="sourceFilter"><SelectValue placeholder="Origem" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Origens</SelectItem>
+              <SelectItem value="Favale">Favale</SelectItem>
+              <SelectItem value="Pink">Pink</SelectItem>
+              <SelectItem value="Instagram">Instagram</SelectItem>
+              <SelectItem value="Facebook">Facebook</SelectItem>
+              <SelectItem value="Site">Site</SelectItem>
+              <SelectItem value="Indicação">Indicação</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="md:col-span-2">
+           <Label htmlFor="statusFilter" className="sr-only">Status</Label>
+          <Select
+            value={filters.status}
+            onValueChange={(value) => onFiltersChange({ ...filters, status: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger id="statusFilter"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="New">Novo</SelectItem>
+              <SelectItem value="Contacted">Contatado</SelectItem>
+              <SelectItem value="Converted">Convertido</SelectItem>
+              <SelectItem value="Lost">Perdido</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="md:col-span-2">
+          <Label htmlFor="campaignFilter" className="sr-only">Campanha</Label>
+          <Select
+            value={filters.campaign}
+            onValueChange={(value) => onFiltersChange({ ...filters, campaign: value === 'all' ? '' : value })}
+          >
+            <SelectTrigger id="campaignFilter"><SelectValue placeholder="Campanha" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Campanhas</SelectItem>
+              <SelectItem value="Instagram">Instagram</SelectItem>
+              <SelectItem value="Facebook">Facebook</SelectItem>
+              <SelectItem value="Email">E-mail</SelectItem>
+              <SelectItem value="Site">Site</SelectItem>
+              <SelectItem value="Indicação">Indicação</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <CollapsibleTrigger asChild className="md:col-span-2">
+          <Button
+            variant={hasActiveFilters ? "default" : "outline"}
+            className="w-full"
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            Filtros
+            {hasActiveFilters && (
+              <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>
+            )}
+            {expanded ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
+          </Button>
+        </CollapsibleTrigger>
+      </div>
 
       {/* Filtros Avançados */}
-      <Collapse in={expanded}>
-        <Box sx={{ p: 3, border: 1, borderColor: 'divider', borderRadius: 2, backgroundColor: 'grey.50' }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="subtitle2" fontWeight={600}>
+      <CollapsibleContent>
+        <div className="p-4 space-y-4 border rounded-md bg-muted/30">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-muted-foreground">
               Filtros Avançados
-            </Typography>
+            </h3>
             <Button
-              size="small"
-              startIcon={<Clear />}
+              variant="ghost"
+              size="sm"
               onClick={clearAllFilters}
               disabled={!hasActiveFilters}
+              className="text-xs"
             >
-              Limpar Tudo
+              <XCircle className="w-3.5 h-3.5 mr-1.5" />
+              Limpar Tudo ({activeFilterCount})
             </Button>
-          </Box>
+          </div>
           
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Estado</InputLabel>
-                <Select
-                  value={filters.state}
-                  label="Estado"
-                  onChange={(e) => onFiltersChange({ ...filters, state: e.target.value })}
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  <MenuItem value="SP">São Paulo</MenuItem>
-                  <MenuItem value="RJ">Rio de Janeiro</MenuItem>
-                  <MenuItem value="MG">Minas Gerais</MenuItem>
-                  <MenuItem value="RS">Rio Grande do Sul</MenuItem>
-                  <MenuItem value="PR">Paraná</MenuItem>
-                  <MenuItem value="SC">Santa Catarina</MenuItem>
-                  <MenuItem value="BA">Bahia</MenuItem>
-                  <MenuItem value="DF">Distrito Federal</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div>
+              <Label htmlFor="stateFilterAdv" className="text-xs text-muted-foreground">Estado</Label>
+              <Select
+                value={filters.state}
+                onValueChange={(value) => onFiltersChange({ ...filters, state: value === 'all' ? '' : value })}
+              >
+                <SelectTrigger id="stateFilterAdv"><SelectValue placeholder="Estado" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="SP">São Paulo</SelectItem>
+                  <SelectItem value="RJ">Rio de Janeiro</SelectItem>
+                  <SelectItem value="MG">Minas Gerais</SelectItem>
+                  {/* Add other states as needed */}
+                </SelectContent>
+              </Select>
+            </div>
             
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Tag</InputLabel>
-                <Select
-                  value={filters.tag}
-                  label="Tag"
-                  onChange={(e) => onFiltersChange({ ...filters, tag: e.target.value })}
-                >
-                  <MenuItem value="">Todas</MenuItem>
+            <div>
+              <Label htmlFor="tagFilterAdv" className="text-xs text-muted-foreground">Tag</Label>
+              <Select
+                value={filters.tag}
+                onValueChange={(value) => onFiltersChange({ ...filters, tag: value === 'all' ? '' : value })}
+              >
+                <SelectTrigger id="tagFilterAdv"><SelectValue placeholder="Tag" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
                   {availableTags.map((tag) => (
-                    <MenuItem key={tag} value={tag}>
+                    <SelectItem key={tag} value={tag}>
                       {tag}
-                    </MenuItem>
+                    </SelectItem>
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
+                </SelectContent>
+              </Select>
+            </div>
             
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Período</InputLabel>
-                <Select
-                  value={filters.dateRange}
-                  label="Período"
-                  onChange={(e) => handleDateRangeChange(e.target.value)}
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  <MenuItem value="today">Hoje</MenuItem>
-                  <MenuItem value="last7days">Últimos 7 dias</MenuItem>
-                  <MenuItem value="last30days">Últimos 30 dias</MenuItem>
-                  <MenuItem value="thisMonth">Este mês</MenuItem>
-                  <MenuItem value="lastMonth">Mês passado</MenuItem>
-                  <MenuItem value="thisYear">Este ano</MenuItem>
-                  <MenuItem value="custom">Período personalizado</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+            <div>
+              <Label htmlFor="dateRangeFilterAdv" className="text-xs text-muted-foreground">Período</Label>
+              <Select
+                value={filters.dateRange}
+                onValueChange={(value) => handleDateRangeChange(value === 'all' ? '' : value)}
+              >
+                <SelectTrigger id="dateRangeFilterAdv"><SelectValue placeholder="Período" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Qualquer data</SelectItem>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="last7days">Últimos 7 dias</SelectItem>
+                  <SelectItem value="last30days">Últimos 30 dias</SelectItem>
+                  <SelectItem value="thisMonth">Este mês</SelectItem>
+                  <SelectItem value="lastMonth">Mês passado</SelectItem>
+                  <SelectItem value="thisYear">Este ano</SelectItem>
+                  <SelectItem value="custom">Período personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
             {filters.dateRange === 'custom' && (
               <>
-                <Grid item xs={6} md={1.5}>
-                  <TextField
-                    fullWidth
-                    label="Data inicial"
+                <div>
+                  <Label htmlFor="startDateFilterAdv" className="text-xs text-muted-foreground">Data Inicial</Label>
+                  <Input
+                    id="startDateFilterAdv"
                     type="date"
-                    size="small"
-                    InputLabelProps={{ shrink: true }}
                     value={filters.startDate}
                     onChange={(e) => onFiltersChange({ ...filters, startDate: e.target.value })}
                   />
-                </Grid>
-                <Grid item xs={6} md={1.5}>
-                  <TextField
-                    fullWidth
-                    label="Data final"
+                </div>
+                <div>
+                  <Label htmlFor="endDateFilterAdv" className="text-xs text-muted-foreground">Data Final</Label>
+                  <Input
+                    id="endDateFilterAdv"
                     type="date"
-                    size="small"
-                    InputLabelProps={{ shrink: true }}
                     value={filters.endDate}
                     onChange={(e) => onFiltersChange({ ...filters, endDate: e.target.value })}
                   />
-                </Grid>
+                </div>
               </>
             )}
-          </Grid>
-        </Box>
-      </Collapse>
-    </Box>
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

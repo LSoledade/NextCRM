@@ -1,35 +1,41 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { type BadgeProps } from "@/components/ui/badge"; // Corrected: Moved to top
+import { Button } from '@/components/ui/button';
 import {
-  Box,
-  Typography,
-  Button,
   Card,
   CardContent,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Stack,
-  Grid,
-  IconButton,
-  CircularProgress,
-} from '@mui/material';
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
-  Add,
-  Edit,
-  Delete,
-  DragIndicator,
-} from '@mui/icons-material';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { PlusCircle, Edit2, Trash2, GripVertical } from 'lucide-react';
 import AppLayout from '@/components/Layout/AppLayout';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Database } from '@/types/database';
 
@@ -71,7 +77,6 @@ export default function TasksPage() {
     if (user) {
       loadData();
       
-      // Configurar realtime subscription
       const subscription = supabase
         .channel('tasks_realtime')
         .on(
@@ -98,7 +103,6 @@ export default function TasksPage() {
     if (!user) return;
 
     try {
-      // Carregar tarefas
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
@@ -107,7 +111,6 @@ export default function TasksPage() {
 
       if (tasksError) throw tasksError;
 
-      // Carregar leads para o select
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
         .select('*')
@@ -237,239 +240,254 @@ export default function TasksPage() {
       status: 'Todo',
       due_date: '',
       related_lead_id: '',
-    });
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'Low': return 'success';
-      case 'Medium': return 'warning';
-      case 'High': return 'error';
-      case 'Urgent': return 'error';
-      default: return 'default';
-    }
+    }); // Corrected: Added semicolon
   };
 
   const getTasksByStatus = (status: string) => {
     return tasks.filter(task => task.status === status);
   };
 
+  const getPriorityColor = (priority: string): BadgeProps["variant"] => {
+    switch (priority) {
+    case 'Low': return 'default';
+    case 'Medium': return 'secondary';
+    case 'High': return 'destructive';
+    case 'Urgent': return 'destructive';
+    default: return 'outline';
+  }
+};
+
   if (loading) {
     return (
       <AppLayout>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <CircularProgress />
-        </Box>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <svg className="w-12 h-12 text-primary animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
-      <Box>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4">
-            Tarefas
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => setDialogOpen(true)}
-          >
-            Nova Tarefa
-          </Button>
-        </Box>
+      <div className="space-y-6">
+        <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
+        </div>
 
-        {/* Kanban Board */}
-        <Grid container spacing={3}>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {statusColumns.map((column) => (
-            <Grid item xs={12} md={4} key={column.key}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Box
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    mb={2}
-                  >
-                    <Typography variant="h6">
-                      {column.title}
-                    </Typography>
-                    <Chip
-                      label={getTasksByStatus(column.key).length}
-                      size="small"
-                      sx={{ bgcolor: column.color, color: 'white' }}
-                    />
-                  </Box>
-                  
-                  <Stack spacing={2}>
-                    {getTasksByStatus(column.key).map((task) => (
-                      <Card key={task.id} variant="elevation" sx={{ cursor: 'pointer' }}>
-                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                            <Typography variant="subtitle2" fontWeight="bold">
-                              {task.title}
-                            </Typography>
-                            <Box display="flex" gap={0.5}>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleEditTask(task)}
-                              >
-                                <Edit fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeleteTask(task.id)}
-                              >
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          </Box>
-                          
-                          {task.description && (
-                            <Typography variant="body2" color="text.secondary" mb={1}>
-                              {task.description}
-                            </Typography>
-                          )}
-                          
-                          <Box display="flex" justifyContent="space-between" alignItems="center">
-                            <Chip
-                              label={task.priority}
-                              size="small"
-                              color={getPriorityColor(task.priority) as any}
-                            />
-                            {task.due_date && (
-                              <Typography variant="caption" color="text.secondary">
-                                {new Date(task.due_date).toLocaleDateString('pt-BR')}
-                              </Typography>
-                            )}
-                          </Box>
-                          
-                          {/* Botões para mudar status */}
-                          <Box mt={1} display="flex" gap={1}>
-                            {statusColumns
-                              .filter(col => col.key !== task.status)
-                              .map(col => (
-                                <Button
-                                  key={col.key}
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={() => handleStatusChange(task.id, col.key as any)}
-                                  sx={{ fontSize: '0.7rem', py: 0.5 }}
-                                >
-                                  → {col.title}
-                                </Button>
-                              ))}
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+            <Card key={column.key} className="flex flex-col">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xl font-semibold">{column.title}</CardTitle>
+                  <Badge style={{ backgroundColor: column.color }} className="text-white">
+                    {getTasksByStatus(column.key).length}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-3 overflow-y-auto">
+                {getTasksByStatus(column.key).map((task) => (
+                  <Card key={task.id} className="cursor-grab active:cursor-grabbing">
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between mb-1">
+                        <h3 className="font-semibold text-md">{task.title}</h3>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleEditTask(task)}
+                            className="w-6 h-6"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleDeleteTask(task.id)}
+                            className="text-destructive hover:text-destructive-foreground hover:bg-destructive w-6 h-6"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
 
-        {/* Dialog para Criar/Editar Tarefa */}
-        <Dialog
-          open={dialogOpen}
-          onClose={() => {
-            setDialogOpen(false);
+                      {task.description && (
+                        <p className="mb-2 text-sm text-muted-foreground line-clamp-2">
+                          {task.description}
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <Badge variant={getPriorityColor(task.priority)}>
+                          {task.priority}
+                        </Badge>
+                        {task.due_date && (
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(task.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {statusColumns
+                          .filter(col => col.key !== task.status)
+                          .map(col => (
+                            <Button
+                              key={col.key}
+                              size="xs"
+                              variant="outline"
+                              onClick={() => handleStatusChange(task.id, col.key as any)}
+                              className="text-xs"
+                            >
+                              Mover para {col.title}
+                            </Button>
+                          ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {getTasksByStatus(column.key).length === 0 && (
+                  <p className="text-sm text-center text-muted-foreground">Nenhuma tarefa aqui.</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Dialog open={dialogOpen} onOpenChange={(isOpen) => {
+          setDialogOpen(isOpen);
+          if (!isOpen) {
             setEditingTask(null);
             resetForm();
-          }}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>
-            {editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}
-          </DialogTitle>
-          <DialogContent>
-            <Stack spacing={3} sx={{ mt: 1 }}>
-              <TextField
-                label="Título"
-                fullWidth
-                value={newTask.title}
-                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-              />
-              <TextField
-                label="Descrição"
-                multiline
-                rows={3}
-                fullWidth
-                value={newTask.description}
-                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-              />
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Prioridade</InputLabel>
-                    <Select
-                      value={newTask.priority}
-                      label="Prioridade"
-                      onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}
-                    >
-                      <MenuItem value="Low">Baixa</MenuItem>
-                      <MenuItem value="Medium">Média</MenuItem>
-                      <MenuItem value="High">Alta</MenuItem>
-                      <MenuItem value="Urgent">Urgente</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Status</InputLabel>
-                    <Select
-                      value={newTask.status}
-                      label="Status"
-                      onChange={(e) => setNewTask({ ...newTask, status: e.target.value as any })}
-                    >
-                      <MenuItem value="Todo">Para Fazer</MenuItem>
-                      <MenuItem value="InProgress">Em Andamento</MenuItem>
-                      <MenuItem value="Done">Concluído</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-              <TextField
-                label="Data de Vencimento"
-                type="date"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={newTask.due_date}
-                onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-              />
-              <FormControl fullWidth>
-                <InputLabel>Lead Relacionado</InputLabel>
+          }
+        }}>
+          <DialogTrigger asChild>
+             <Button size="sm" className={cn(dialogOpen && "hidden")}>
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Nova Tarefa
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle>{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</DialogTitle>
+              <DialogDescription>
+                {editingTask ? 'Atualize os detalhes da tarefa.' : 'Preencha os detalhes para criar uma nova tarefa.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid items-center grid-cols-4 gap-4">
+                <Label htmlFor="title" className="text-right">
+                  Título
+                </Label>
+                <Input
+                  id="title"
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  className="col-span-3"
+                  required
+                />
+              </div>
+              <div className="grid items-center grid-cols-4 gap-4">
+                <Label htmlFor="description" className="text-right">
+                  Descrição
+                </Label>
+                <Textarea
+                  id="description"
+                  value={newTask.description}
+                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  className="col-span-3"
+                  rows={3}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid items-center grid-cols-4 gap-4">
+                  <Label htmlFor="priority" className="col-span-1 text-right">
+                    Prioridade
+                  </Label>
+                  <Select
+                    value={newTask.priority}
+                    onValueChange={(value) => setNewTask({ ...newTask, priority: value as any })}
+                  >
+                    <SelectTrigger id="priority" className="col-span-3">
+                      <SelectValue placeholder="Selecionar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Low">Baixa</SelectItem>
+                      <SelectItem value="Medium">Média</SelectItem>
+                      <SelectItem value="High">Alta</SelectItem>
+                      <SelectItem value="Urgent">Urgente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid items-center grid-cols-4 gap-4">
+                  <Label htmlFor="status" className="col-span-1 text-right">
+                    Status
+                  </Label>
+                  <Select
+                    value={newTask.status}
+                    onValueChange={(value) => setNewTask({ ...newTask, status: value as any })}
+                  >
+                    <SelectTrigger id="status" className="col-span-3">
+                      <SelectValue placeholder="Selecionar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Todo">Para Fazer</SelectItem>
+                      <SelectItem value="InProgress">Em Andamento</SelectItem>
+                      <SelectItem value="Done">Concluído</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid items-center grid-cols-4 gap-4">
+                <Label htmlFor="due_date" className="text-right">
+                  Vencimento
+                </Label>
+                <Input
+                  id="due_date"
+                  type="date"
+                  value={newTask.due_date}
+                  onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid items-center grid-cols-4 gap-4">
+                <Label htmlFor="related_lead_id" className="text-right">
+                  Lead
+                </Label>
                 <Select
                   value={newTask.related_lead_id}
-                  label="Lead Relacionado"
-                  onChange={(e) => setNewTask({ ...newTask, related_lead_id: e.target.value })}
+                  onValueChange={(value) => setNewTask({ ...newTask, related_lead_id: value })}
                 >
-                  <MenuItem value="">Nenhum</MenuItem>
-                  {leads.map((lead) => (
-                    <MenuItem key={lead.id} value={lead.id}>
-                      {lead.name} - {lead.email}
-                    </MenuItem>
-                  ))}
+                  <SelectTrigger id="related_lead_id" className="col-span-3">
+                    <SelectValue placeholder="Nenhum" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum</SelectItem>
+                    {leads.map((lead) => (
+                      <SelectItem key={lead.id} value={lead.id}>
+                        {lead.name} {lead.email ? `(${lead.email})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
-              </FormControl>
-            </Stack>
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancelar
+                </Button>
+              </DialogClose>
+              <Button type="submit" onClick={editingTask ? handleUpdateTask : handleCreateTask}>
+                {editingTask ? 'Atualizar Tarefa' : 'Criar Tarefa'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={editingTask ? handleUpdateTask : handleCreateTask}
-              variant="contained"
-            >
-              {editingTask ? 'Atualizar' : 'Criar'}
-            </Button>
-          </DialogActions>
         </Dialog>
-      </Box>
+      </div>
     </AppLayout>
   );
 }
