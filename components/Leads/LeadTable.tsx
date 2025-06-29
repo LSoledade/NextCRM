@@ -2,36 +2,41 @@
 
 import { useState } from 'react';
 import {
-  Box,
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
+  TableHeader, // Shadcn specific
   TableRow,
-  Paper,
-  Checkbox,
-  IconButton,
-  Chip,
-  Typography,
-  TablePagination,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
-  CircularProgress,
-} from '@mui/material';
+} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import {
-  MoreVert,
-  Edit,
-  Delete,
-  Visibility,
-  Phone,
-  Email,
-} from '@mui/icons-material';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Card, CardContent } from "@/components/ui/card"; // For Paper replacement
+import { MoreHorizontal, Edit3, Trash2, Eye, PhoneCall, Mail } from 'lucide-react'; // Replaced icons
 import { Database } from '@/types/database';
+import { cn } from '@/lib/utils';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
+
+// Assuming you might want a custom pagination component or integrate with shadcn's table capabilities
+// For simplicity, basic pagination logic is kept, but UI will need shadcn components.
+// Shadcn UI doesn't have a direct TablePagination component like MUI.
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"; // For Rows per page
 
 interface LeadTableProps {
   leads: Lead[];
@@ -54,11 +59,10 @@ export default function LeadTable({
 }: LeadTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  // DropdownMenu handles its own open/close state, no need for anchorEl or selectedLead for menu here
 
-  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
+  const handleSelectAll = (checked: boolean | 'indeterminate') => {
+    if (checked === true) {
       const newSelectedIds = paginatedLeads.map((lead) => lead.id);
       onSelectionChange([...new Set([...selectedIds, ...newSelectedIds])]);
     } else {
@@ -67,200 +71,233 @@ export default function LeadTable({
     }
   };
 
-  const handleSelectOne = (event: React.ChangeEvent<HTMLInputElement>, id: string) => {
-    if (event.target.checked) {
+  const handleSelectOne = (checked: boolean | 'indeterminate', id: string) => {
+    if (checked === true) {
       onSelectionChange([...selectedIds, id]);
     } else {
       onSelectionChange(selectedIds.filter(selectedId => selectedId !== id));
     }
   };
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, lead: Lead) => {
-    setAnchorEl(event.currentTarget);
-    setSelectedLead(lead);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-    setSelectedLead(null);
-  };
-
-  const handleChangePage = (event: unknown, newPage: number) => {
+  const handleChangePage = (newPage: number) => {
     setPage(newPage);
   };
 
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+  const handleChangeRowsPerPage = (value: string) => {
+    setRowsPerPage(parseInt(value, 10));
     setPage(0);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadgeVariant = (status: string): BadgeProps["variant"] => {
     switch (status) {
-      case 'New': return 'primary';
-      case 'Contacted': return 'info';
+      case 'New': return 'default';
+      case 'Contacted': return 'secondary';
       case 'Converted': return 'success';
-      case 'Lost': return 'error';
-      default: return 'default';
+      case 'Lost': return 'destructive';
+      default: return 'outline';
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric'
+      });
+    } catch (e) {
+        return 'Data inválida';
     }
   };
 
   const paginatedLeads = leads.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const isAllSelected = paginatedLeads.length > 0 && 
-    paginatedLeads.every(lead => selectedIds.includes(lead.id));
-  const isIndeterminate = paginatedLeads.some(lead => selectedIds.includes(lead.id)) && !isAllSelected;
+
+  const isAllOnPageSelected = paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedIds.includes(lead.id));
+  const isSomeOnPageSelected = paginatedLeads.some(lead => selectedIds.includes(lead.id));
+  const selectAllCheckedState = isAllOnPageSelected ? true : isSomeOnPageSelected ? 'indeterminate' : false;
+
 
   if (loading) {
     return (
-      <Paper elevation={1} sx={{ p: 4, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Carregando leads...
-        </Typography>
-      </Paper>
+      <Card className="p-6 text-center">
+        <div className="flex flex-col items-center justify-center">
+          <svg className="w-12 h-12 text-primary animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="mt-2 text-sm text-muted-foreground">Carregando leads...</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (leads.length === 0 && !loading) {
+    return (
+      <Card className="p-6 text-center">
+        <p className="text-muted-foreground">Nenhum lead encontrado.</p>
+      </Card>
     );
   }
 
   return (
-    <Paper elevation={1}>
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell padding="checkbox">
-                <Checkbox
-                  indeterminate={isIndeterminate}
-                  checked={isAllSelected}
-                  onChange={handleSelectAll}
-                />
-              </TableCell>
-              <TableCell>Nome</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Telefone</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Origem</TableCell>
-              <TableCell>Criado em</TableCell>
-              <TableCell align="center">Ações</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {paginatedLeads.map((lead) => (
-              <TableRow
-                key={lead.id}
-                hover
-                selected={selectedIds.includes(lead.id)}
-              >
-                <TableCell padding="checkbox">
+    <Card>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">
                   <Checkbox
-                    checked={selectedIds.includes(lead.id)}
-                    onChange={(event) => handleSelectOne(event, lead.id)}
+                    checked={selectAllCheckedState}
+                    onCheckedChange={handleSelectAll}
+                    aria-label="Selecionar todos na página"
                   />
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" fontWeight={500}>
-                    {lead.name}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Email fontSize="small" color="action" />
-                    <Typography variant="body2">{lead.email}</Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  {lead.phone ? (
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <Phone fontSize="small" color="action" />
-                      <Typography variant="body2">{lead.phone}</Typography>
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Não informado
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={lead.status}
-                    color={getStatusColor(lead.status) as any}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
-                    {lead.source || 'Não informada'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" color="text.secondary">
-                    {new Date(lead.created_at).toLocaleDateString('pt-BR')}
-                  </Typography>
-                </TableCell>
-                <TableCell align="center">
-                  <IconButton
-                    size="small"
-                    onClick={(event) => handleMenuOpen(event, lead)}
-                  >
-                    <MoreVert />
-                  </IconButton>
-                </TableCell>
+                </TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Telefone</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Origem</TableHead>
+                <TableHead>Criado em</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHeader>
+            <TableBody>
+              {paginatedLeads.map((lead) => (
+                <TableRow
+                  key={lead.id}
+                  data-state={selectedIds.includes(lead.id) && "selected"}
+                >
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.includes(lead.id)}
+                      onCheckedChange={(checked) => handleSelectOne(checked, lead.id)}
+                      aria-label={`Selecionar lead ${lead.name}`}
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">{lead.name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="w-4 h-4" />
+                      {lead.email}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {lead.phone ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <PhoneCall className="w-4 h-4" />
+                        {lead.phone}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Não informado</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusBadgeVariant(lead.status)}>{lead.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {lead.source || 'Não informada'}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatDate(lead.created_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="w-8 h-8 p-0">
+                          <span className="sr-only">Abrir menu</span>
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onView(lead)}>
+                          <Eye className="w-4 h-4 mr-2" /> Visualizar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onEdit(lead)}>
+                          <Edit3 className="w-4 h-4 mr-2" /> Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => onDelete(lead)}
+                          className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-700/20 dark:focus:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
 
-      <TablePagination
-        component="div"
-        count={leads.length}
-        page={page}
-        onPageChange={handleChangePage}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        labelRowsPerPage="Linhas por página:"
-        labelDisplayedRows={({ from, to, count }) => 
-          `${from}-${to} de ${count !== -1 ? count : `mais de ${to}`}`
-        }
-      />
-
-      {/* Menu de Ações */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <MenuItem onClick={() => {
-          if (selectedLead) onView(selectedLead);
-          handleMenuClose();
-        }}>
-          <ListItemIcon>
-            <Visibility fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Visualizar</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => {
-          if (selectedLead) onEdit(selectedLead);
-          handleMenuClose();
-        }}>
-          <ListItemIcon>
-            <Edit fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Editar</ListItemText>
-        </MenuItem>
-        <MenuItem 
-          onClick={() => {
-            if (selectedLead) onDelete(selectedLead);
-            handleMenuClose();
-          }}
-          sx={{ color: 'error.main' }}
-        >
-          <ListItemIcon>
-            <Delete fontSize="small" color="error" />
-          </ListItemIcon>
-          <ListItemText>Excluir</ListItemText>
-        </MenuItem>
-      </Menu>
-    </Paper>
+      {/* Custom Pagination Controls */}
+      <div className="flex items-center justify-between p-4 border-t">
+        <div className="text-sm text-muted-foreground">
+          {selectedIds.length} de {leads.length} linha(s) selecionadas.
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <p className="text-sm font-medium">Linhas por página</p>
+            <Select
+              value={`${rowsPerPage}`}
+              onValueChange={handleChangeRowsPerPage}
+            >
+              <SelectTrigger className="h-8 w-[70px]">
+                <SelectValue placeholder={rowsPerPage} />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {[10, 20, 30, 40, 50].map((pageSize) => (
+                  <SelectItem key={pageSize} value={`${pageSize}`}>
+                    {pageSize}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="text-sm font-medium">
+            Página {page + 1} de {Math.ceil(leads.length / rowsPerPage)}
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              className="w-8 h-8 p-0"
+              onClick={() => handleChangePage(0)}
+              disabled={page === 0}
+            >
+              <span className="sr-only">Primeira página</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-8 h-8 p-0"
+              onClick={() => handleChangePage(page - 1)}
+              disabled={page === 0}
+            >
+              <span className="sr-only">Página anterior</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-8 h-8 p-0"
+              onClick={() => handleChangePage(page + 1)}
+              disabled={page >= Math.ceil(leads.length / rowsPerPage) - 1}
+            >
+              <span className="sr-only">Próxima página</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-8 h-8 p-0"
+              onClick={() => handleChangePage(Math.ceil(leads.length / rowsPerPage) - 1)}
+              disabled={page >= Math.ceil(leads.length / rowsPerPage) - 1}
+            >
+              <span className="sr-only">Última página</span>
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }

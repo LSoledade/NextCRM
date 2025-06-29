@@ -24,10 +24,10 @@
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
+    --primary: 2 81% 55%;        /* Vermelho Favale: #E9342E */
+    --primary-foreground: 0 0% 100%; /* Branco para contraste */
+    --secondary: 27 100% 60%;     /* Laranja: #FF9334 */
+    --secondary-foreground: 0 0% 9%; /* Preto para contraste */
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
     --accent: 0 0% 96.1%;
@@ -51,10 +51,10 @@
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
+    --primary: 2 81% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 27 100% 60%;
+    --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 14.9%;
     --muted-foreground: 0 0% 63.9%;
     --accent: 0 0% 14.9%;

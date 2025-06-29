@@ -2,18 +2,10 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Box,
-  Typography,
-  Button,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
-import {
-  Add,
-  FileDownload,
-  FileUpload,
-} from '@mui/icons-material';
+import { Button, buttonVariants } from '@/components/ui/button'; // Added buttonVariants
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress'; // Or a custom spinner component
+import { PlusCircle, Download, Upload, AlertTriangle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import AppLayout from '@/components/Layout/AppLayout';
-import LeadTable from '@/components/Leads/LeadTable';
+import LeadTable from '@/components/Leads/LeadTable'; // Assuming this will also be refactored
 import LeadDialog from '@/components/Leads/LeadDialog';
 import FilterPanel from '@/components/Leads/FilterPanel';
 import BatchOperations from '@/components/Leads/BatchOperations';
@@ -247,14 +239,15 @@ export default function LeadsPage() {
   if (authLoading || leadsLoading) {
     return (
       <AppLayout>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <Box textAlign="center">
-            <CircularProgress size={48} sx={{ mb: 2 }} />
-            <Typography color="text.secondary">
-              Carregando leads...
-            </Typography>
-          </Box>
-        </Box>
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          {/* You can use a Spinner component here if you have one, or a simple text */}
+          {/* <Progress value={...} className="w-[60%]" /> // Example if using Progress for loading */}
+          <svg className="w-12 h-12 text-primary animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="mt-4 text-muted-foreground">Carregando leads...</p>
+        </div>
       </AppLayout>
     );
   }
@@ -262,14 +255,18 @@ export default function LeadsPage() {
   // Redireciona para login se não estiver autenticado e não está carregando
   if (!authLoading && !user) {
     router.push('/login');
-    return null;
+    return null; // Return null while redirecting
   }
 
   if (leadsError) {
     return (
       <AppLayout>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Erro ao carregar leads
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="w-4 h-4" />
+          <AlertTitle>Erro</AlertTitle>
+          <AlertDescription>
+            Ocorreu um erro ao carregar os leads. Tente novamente mais tarde.
+          </AlertDescription>
         </Alert>
       </AppLayout>
     );
@@ -277,40 +274,31 @@ export default function LeadsPage() {
 
   return (
     <AppLayout>
-      <Box>
+      <div className="space-y-6">
         {/* Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4" fontWeight="600">
-            Leads
-          </Typography>
-          <Box display="flex" gap={1}>
-            <Button
-              variant="outlined"
-              startIcon={<FileUpload />}
-              size="small"
-            >
+        <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <h1 className="text-3xl font-bold tracking-tight">Leads</h1>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm">
+              <Upload className="w-4 h-4 mr-2" />
               Importar
             </Button>
-            <Button
-              variant="outlined"
-              startIcon={<FileDownload />}
-              size="small"
-              disabled={leads.length === 0}
-            >
+            <Button variant="outline" size="sm" disabled={leads.length === 0}>
+              <Download className="w-4 h-4 mr-2" />
               Exportar
             </Button>
             <Button
-              variant="contained"
-              startIcon={<Add />}
+              size="sm"
               onClick={() => {
                 setSelectedLead(null);
                 setDialogOpen(true);
               }}
             >
+              <PlusCircle className="w-4 h-4 mr-2" />
               Novo Lead
             </Button>
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {/* Filters */}
         <FilterPanel
@@ -322,18 +310,20 @@ export default function LeadsPage() {
         />
 
         {/* Batch Operations */}
-        <BatchOperations
-          selectedCount={selectedIds.length}
-          onClearSelection={() => setSelectedIds([])}
-          onBatchStatusUpdate={handleBatchStatusUpdate}
-          onBatchSourceUpdate={handleBatchSourceUpdate}
-          onBatchDelete={() => setBatchDeleteDialogOpen(true)}
-        />
+        {selectedIds.length > 0 && ( // Show batch operations only if items are selected
+          <BatchOperations
+            selectedCount={selectedIds.length}
+            onClearSelection={() => setSelectedIds([])}
+            onBatchStatusUpdate={handleBatchStatusUpdate}
+            onBatchSourceUpdate={handleBatchSourceUpdate}
+            onBatchDelete={() => setBatchDeleteDialogOpen(true)}
+          />
+        )}
 
         {/* Table */}
         <LeadTable
           leads={leads}
-          loading={false}
+          loading={false} // This was hardcoded, ensure it's reactive if needed
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           onEdit={handleEditLead}
@@ -342,10 +332,15 @@ export default function LeadsPage() {
         />
 
         {/* Lead Dialog */}
+        {/* Assuming LeadDialog is a shadcn/ui Dialog or Sheet.
+            If it's custom, it needs to be refactored as well.
+            The 'open' prop and 'onClose' will likely change to 'open' and 'onOpenChange'.
+        */}
         <LeadDialog
           open={dialogOpen}
           lead={selectedLead}
-          onClose={() => {
+          onOpenChange={setDialogOpen} // Common pattern for shadcn/ui dialogs
+          onClose={() => { // Keep if LeadDialog uses this, or adapt
             setDialogOpen(false);
             setSelectedLead(null);
           }}
@@ -353,23 +348,21 @@ export default function LeadsPage() {
         />
 
         {/* Delete Confirmation Dialog */}
-        <AlertDialog
-          open={deleteDialogOpen}
-          onOpenChange={setDeleteDialogOpen}
-        >
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
               <AlertDialogDescription>
-              Tem certeza que deseja excluir o lead &quot;{selectedLead?.name}&quot;?
-              Esta ação não pode ser desfeita.
+                Tem certeza que deseja excluir o lead &quot;{selectedLead?.name}&quot;?
+                Esta ação não pode ser desfeita.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>
-                Cancelar
-              </AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteLead}>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteLead}
+                className={cn(buttonVariants({ variant: "destructive" }))}
+              >
                 Excluir
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -377,29 +370,27 @@ export default function LeadsPage() {
         </AlertDialog>
 
         {/* Batch Delete Confirmation Dialog */}
-        <AlertDialog
-          open={batchDeleteDialogOpen}
-          onOpenChange={setBatchDeleteDialogOpen}
-        >
+        <AlertDialog open={batchDeleteDialogOpen} onOpenChange={setBatchDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirmar Exclusão em Lote</AlertDialogTitle>
               <AlertDialogDescription>
-              Tem certeza que deseja excluir {selectedIds.length} leads selecionados?
-              Esta ação não pode ser desfeita.
+                Tem certeza que deseja excluir {selectedIds.length} leads selecionados?
+                Esta ação não pode ser desfeita.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setBatchDeleteDialogOpen(false)}>
-                Cancelar
-              </AlertDialogCancel>
-              <AlertDialogAction onClick={handleBatchDelete}>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBatchDelete}
+                className={cn(buttonVariants({ variant: "destructive" }))}
+              >
                 Excluir {selectedIds.length} leads
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </Box>
+      </div>
     </AppLayout>
   );
 }
