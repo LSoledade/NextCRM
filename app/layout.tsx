@@ -5,6 +5,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from '@/lib/theme';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ReactQueryProvider } from '@/contexts/ReactQueryProvider';
 
 const outfit = Outfit({ subsets: ['latin'] });
 
@@ -21,12 +22,14 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={outfit.className}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </ThemeProvider>
+        <ReactQueryProvider>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </ThemeProvider>
+        </ReactQueryProvider>
       </body>
     </html>
   );
