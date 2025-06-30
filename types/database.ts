@@ -148,7 +148,7 @@ export interface Database {
           assigned_to_id: string;
           related_lead_id: string | null;
           priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-          status: 'Todo' | 'InProgress' | 'Done';
+          status: 'Backlog' | 'Em andamento' | 'Bloqueadas' | 'Em Analise' | 'Concluidas';
           due_date: string | null;
           created_at: string;
           updated_at: string;
@@ -161,7 +161,7 @@ export interface Database {
           assigned_to_id: string;
           related_lead_id?: string | null;
           priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
-          status?: 'Todo' | 'InProgress' | 'Done';
+          status?: 'Backlog' | 'Em andamento' | 'Bloqueadas' | 'Em Analise' | 'Concluidas';
           due_date?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -174,7 +174,7 @@ export interface Database {
           assigned_to_id?: string;
           related_lead_id?: string | null;
           priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
-          status?: 'Todo' | 'InProgress' | 'Done';
+          status?: 'Backlog' | 'Em andamento' | 'Bloqueadas' | 'Em Analise' | 'Concluidas';
           due_date?: string | null;
           created_at?: string;
           updated_at?: string;
