@@ -191,13 +191,12 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
                <div className="space-y-2">
                 <Label htmlFor="source">Origem</Label>
                 <Select
-                  value={formData.source || ''}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, source: value }))}
+                  value={formData.source || undefined}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, source: value || null }))}
                   disabled={loading}
                 >
                   <SelectTrigger id="source"><SelectValue placeholder="Selecione uma origem" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Selecione uma origem</SelectItem>
                     <SelectItem value="Favale">Favale</SelectItem>
                     <SelectItem value="Pink">Pink</SelectItem>
                     <SelectItem value="Instagram">Instagram</SelectItem>
