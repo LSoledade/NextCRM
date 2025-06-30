@@ -24,10 +24,21 @@ import BatchOperations from '@/components/Leads/BatchOperations';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Database } from '@/types/database';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query'; // Adicionado useQueryClient
+import { cn } from '@/lib/utils';
+import {
+  useCreateLeadMutation,
+  useUpdateLeadMutation,
+  useDeleteLeadMutation,
+  useBatchUpdateLeadsStatusMutation,
+  useBatchUpdateLeadsSourceMutation,
+  useBatchDeleteLeadsMutation,
+} from '@/hooks/useLeadMutations'; // Importar os novos hooks
 
 type Lead = Database['public']['Tables']['leads']['Row'];
 type InsertLead = Database['public']['Tables']['leads']['Insert'];
+// Adicionar Type UpdateLead se for diferente de InsertLead e usado em handleUpdateLead
+type UpdateLead = Database['public']['Tables']['leads']['Update'];
 
 interface FilterState {
   source: string;
@@ -92,53 +103,37 @@ export default function LeadsPage() {
     data: leads = [],
     isLoading: leadsLoading,
     isError: leadsError,
-    refetch: refetchLeads,
+    // refetch: refetchLeads, // refetchLeads não é mais necessário diretamente aqui, a invalidação cuidará disso
   } = useQuery({
     queryKey: ['leads', user?.id, filters, searchTerm],
     queryFn: fetchLeads,
     enabled: !authLoading && !!user,
+    // refetchOnWindowFocus: false, // Opcional: desabilitar refetch em foco da janela se causar problemas
   });
 
+  // Instanciar os hooks de mutação
+  const createLeadMutation = useCreateLeadMutation(user?.id);
+  const updateLeadMutation = useUpdateLeadMutation(user?.id);
+  const deleteLeadMutation = useDeleteLeadMutation(user?.id);
+  const batchUpdateLeadsStatusMutation = useBatchUpdateLeadsStatusMutation(user?.id);
+  const batchUpdateLeadsSourceMutation = useBatchUpdateLeadsSourceMutation(user?.id);
+  const batchDeleteLeadsMutation = useBatchDeleteLeadsMutation(user?.id);
+
   const handleCreateLead = async (leadData: InsertLead) => {
-    if (!user) return;
     try {
-      // Verificar se o usuário existe na tabela users antes de criar o lead
-      const { data: userExists, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', user.id)
-        .single();
-
-      if (userError) {
-        console.error('Usuário não encontrado na tabela users:', userError);
-        throw new Error('Perfil do usuário não encontrado. Tente fazer logout e login novamente.');
-      }
-
-      console.log('Usuário verificado:', userExists);
-
-      await supabase
-        .from('leads')
-        .insert([{ ...leadData, user_id: user.id }])
-        .select()
-        .single();
-      await refetchLeads();
+      await createLeadMutation.mutateAsync(leadData);
+      // A invalidação é feita no onSuccess do hook
     } catch (error) {
       console.error('Erro ao criar lead:', error);
-      throw error;
+      // Adicionar notificação para o usuário (ex: usando um toast)
+      throw error; // Re-throw para o LeadDialog poder tratar e não fechar, por exemplo
     }
   };
 
-  const handleUpdateLead = async (leadData: InsertLead) => {
-    if (!selectedLead || !user) return;
+  const handleUpdateLead = async (leadData: UpdateLead) => {
+    if (!selectedLead) return;
     try {
-      await supabase
-        .from('leads')
-        .update(leadData)
-        .eq('id', selectedLead.id)
-        .eq('user_id', user.id)
-        .select()
-        .single();
-      await refetchLeads();
+      await updateLeadMutation.mutateAsync({ ...leadData, id: selectedLead.id });
     } catch (error) {
       console.error('Erro ao atualizar lead:', error);
       throw error;
@@ -146,66 +141,48 @@ export default function LeadsPage() {
   };
 
   const handleDeleteLead = async () => {
-    if (!selectedLead || !user) return;
+    if (!selectedLead) return;
     try {
-      await supabase
-        .from('leads')
-        .delete()
-        .eq('id', selectedLead.id)
-        .eq('user_id', user.id);
+      await deleteLeadMutation.mutateAsync(selectedLead.id);
       setDeleteDialogOpen(false);
       setSelectedLead(null);
-      await refetchLeads();
     } catch (error) {
       console.error('Erro ao deletar lead:', error);
+      // Adicionar notificação para o usuário
     }
   };
 
   const handleBatchStatusUpdate = async (status: string) => {
-    if (!user || selectedIds.length === 0) return;
+    if (selectedIds.length === 0) return;
     try {
-      await supabase
-        .from('leads')
-        .update({ status: status as any })
-        .in('id', selectedIds)
-        .eq('user_id', user.id)
-        .select();
-      setSelectedIds([]);
-      await refetchLeads();
+      await batchUpdateLeadsStatusMutation.mutateAsync({ ids: selectedIds, status });
+      setSelectedIds([]); // Limpar seleção após sucesso
     } catch (error) {
       console.error('Erro ao atualizar status em lote:', error);
+      // Adicionar notificação para o usuário
     }
   };
 
   const handleBatchSourceUpdate = async (source: string) => {
-    if (!user || selectedIds.length === 0) return;
+    if (selectedIds.length === 0) return;
     try {
-      await supabase
-        .from('leads')
-        .update({ source })
-        .in('id', selectedIds)
-        .eq('user_id', user.id)
-        .select();
+      await batchUpdateLeadsSourceMutation.mutateAsync({ ids: selectedIds, source });
       setSelectedIds([]);
-      await refetchLeads();
     } catch (error) {
       console.error('Erro ao atualizar origem em lote:', error);
+      // Adicionar notificação para o usuário
     }
   };
 
   const handleBatchDelete = async () => {
-    if (!user || selectedIds.length === 0) return;
+    if (selectedIds.length === 0) return;
     try {
-      await supabase
-        .from('leads')
-        .delete()
-        .in('id', selectedIds)
-        .eq('user_id', user.id);
+      await batchDeleteLeadsMutation.mutateAsync(selectedIds);
       setSelectedIds([]);
       setBatchDeleteDialogOpen(false);
-      await refetchLeads();
     } catch (error) {
       console.error('Erro ao deletar leads em lote:', error);
+      // Adicionar notificação para o usuário
     }
   };
 

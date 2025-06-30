@@ -64,7 +64,7 @@ export default function LeadTable({
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
     if (checked === true) {
       const newSelectedIds = paginatedLeads.map((lead) => lead.id);
-      onSelectionChange([...new Set([...selectedIds, ...newSelectedIds])]);
+      onSelectionChange(Array.from(new Set([...selectedIds, ...newSelectedIds])));
     } else {
       const pageIds = paginatedLeads.map((lead) => lead.id);
       onSelectionChange(selectedIds.filter(id => !pageIds.includes(id)));
@@ -90,9 +90,9 @@ export default function LeadTable({
 
   const getStatusBadgeVariant = (status: string): BadgeProps["variant"] => {
     switch (status) {
-      case 'New': return 'default';
-      case 'Contacted': return 'secondary';
-      case 'Converted': return 'success';
+      case 'New': return 'secondary'; // Using secondary for New for better differentiation
+      case 'Contacted': return 'outline'; // Using outline for Contacted
+      case 'Converted': return 'default'; // Using default (primary color) for Converted
       case 'Lost': return 'destructive';
       default: return 'outline';
     }

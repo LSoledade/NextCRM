@@ -1,15 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { type BadgeProps } from "@/components/ui/badge"; // Corrected: Moved to top
+import { useEffect, useState } from 'react'; // useState e useEffect ainda são usados para leads e dialogs
+import { type BadgeProps } from "@/components/ui/badge";
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
-  CardFooter,
+  // CardDescription, // Não usado no Dialog de Tarefas
+  // CardFooter, // Não usado no Dialog de Tarefas
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -32,232 +32,179 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Edit2, Trash2, GripVertical } from 'lucide-react';
+import { PlusCircle, Edit2, Trash2, AlertTriangle } from 'lucide-react'; // Removido GripVertical
 import AppLayout from '@/components/Layout/AppLayout';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase'; // supabase ainda é usado para buscar leads
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Database } from '@/types/database';
+import { useRealtimeTasks } from '@/hooks/useRealtimeTasks';
+import {
+  useCreateTaskMutation,
+  useUpdateTaskMutation,
+  useDeleteTaskMutation,
+  useUpdateTaskStatusMutation,
+} from '@/hooks/useTaskMutations';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Para exibir erros
 
 type Task = Database['public']['Tables']['tasks']['Row'];
 type Lead = Database['public']['Tables']['leads']['Row'];
+type InsertTask = Database['public']['Tables']['tasks']['Insert'];
+type UpdateTask = Database['public']['Tables']['tasks']['Update'];
 
-interface NewTask {
+
+// Interface NewTask pode ser substituída ou alinhada com InsertTask/UpdateTask
+interface FormTaskState {
   title: string;
   description: string;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: 'Todo' | 'InProgress' | 'Done';
   due_date: string;
-  related_lead_id: string;
+  related_lead_id: string | null; // Permitir null
 }
 
 const statusColumns = [
-  { key: 'Todo', title: 'Para Fazer', color: '#FF9800' },
-  { key: 'InProgress', title: 'Em Andamento', color: '#2196F3' },
-  { key: 'Done', title: 'Concluído', color: '#4CAF50' },
+  { key: 'Todo' as UpdateTask['status'], title: 'Para Fazer', color: '#FF9800' },
+  { key: 'InProgress' as UpdateTask['status'], title: 'Em Andamento', color: '#2196F3' },
+  { key: 'Done' as UpdateTask['status'], title: 'Concluído', color: '#4CAF50' },
 ];
 
 export default function TasksPage() {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const userId = user?.id;
+
+  // Hook para dados de tasks e real-time updates
+  const { tasks, isLoading: tasksLoading, error: tasksError } = useRealtimeTasks();
+
+  // Hooks de mutação para tasks
+  const createTaskMutation = useCreateTaskMutation(userId);
+  const updateTaskMutation = useUpdateTaskMutation(userId);
+  const deleteTaskMutation = useDeleteTaskMutation(userId);
+  const updateTaskStatusMutation = useUpdateTaskStatusMutation(userId);
+
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [leadsLoading, setLeadsLoading] = useState(true); // Loading para leads
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [newTask, setNewTask] = useState<NewTask>({
+
+  // Estado do formulário
+  const initialFormState: FormTaskState = {
     title: '',
     description: '',
     priority: 'Medium',
     status: 'Todo',
     due_date: '',
-    related_lead_id: '',
-  });
+    related_lead_id: null,
+  };
+  const [formTask, setFormTask] = useState<FormTaskState>(initialFormState);
 
+  // Efeito para carregar leads (necessário para o dropdown no formulário de task)
   useEffect(() => {
-    if (user) {
-      loadData();
-      
-      const subscription = supabase
-        .channel('tasks_realtime')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'tasks',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            loadData();
-          }
-        )
-        .subscribe();
+    const fetchLeads = async () => {
+      if (!userId) {
+        setLeads([]);
+        setLeadsLoading(false);
+        return;
+      }
+      setLeadsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*') // Selecionar todos os campos para corresponder ao tipo Lead
+          .eq('user_id', userId);
+        if (error) throw error;
+        setLeads(data || []);
+      } catch (error) {
+        console.error('Erro ao buscar leads para o formulário de tasks:', error);
+        setLeads([]);
+      } finally {
+        setLeadsLoading(false);
+      }
+    };
+    fetchLeads();
+  }, [userId]);
 
-      return () => {
-        supabase.removeChannel(subscription);
-      };
-    }
-  }, [user]);
 
-  const loadData = async () => {
-    if (!user) return;
-
-    try {
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (tasksError) throw tasksError;
-
-      const { data: leadsData, error: leadsError } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (leadsError) throw leadsError;
-
-      setTasks(tasksData || []);
-      setLeads(leadsData || []);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-    } finally {
-      setLoading(false);
-    }
+  const handleOpenDialogForCreate = () => {
+    setEditingTask(null);
+    setFormTask(initialFormState);
+    setDialogOpen(true);
   };
 
-  const handleCreateTask = async () => {
-    if (!user) return;
-
-    try {
-      const taskData = {
-        ...newTask,
-        assigned_to_id: user.id,
-        user_id: user.id,
-        related_lead_id: newTask.related_lead_id || null,
-      };
-
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert([taskData])
-        .select();
-
-      if (error) throw error;
-
-      setTasks([...tasks, ...data]);
-      setDialogOpen(false);
-      resetForm();
-    } catch (error) {
-      console.error('Erro ao criar tarefa:', error);
-    }
-  };
-
-  const handleUpdateTask = async () => {
-    if (!editingTask || !user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .update({
-          ...newTask,
-          related_lead_id: newTask.related_lead_id || null,
-        })
-        .eq('id', editingTask.id)
-        .eq('user_id', user.id)
-        .select();
-
-      if (error) throw error;
-
-      setTasks(tasks.map(task => 
-        task.id === editingTask.id ? data[0] : task
-      ));
-      setDialogOpen(false);
-      setEditingTask(null);
-      resetForm();
-    } catch (error) {
-      console.error('Erro ao atualizar tarefa:', error);
-    }
-  };
-
-  const handleDeleteTask = async (id: string) => {
-    if (!user) return;
-
-    try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      setTasks(tasks.filter(task => task.id !== id));
-    } catch (error) {
-      console.error('Erro ao deletar tarefa:', error);
-    }
-  };
-
-  const handleEditTask = (task: Task) => {
+  const handleOpenDialogForEdit = (task: Task) => {
     setEditingTask(task);
-    setNewTask({
+    setFormTask({
       title: task.title,
       description: task.description || '',
-      priority: task.priority,
-      status: task.status,
+      priority: task.priority as FormTaskState['priority'], // Cast se necessário
+      status: task.status as FormTaskState['status'], // Cast se necessário
       due_date: task.due_date ? task.due_date.split('T')[0] : '',
-      related_lead_id: task.related_lead_id || '',
+      related_lead_id: task.related_lead_id || null,
     });
     setDialogOpen(true);
   };
 
-  const handleStatusChange = async (taskId: string, newStatus: 'Todo' | 'InProgress' | 'Done') => {
-    if (!user) return;
+  const handleSubmitTaskForm = async () => {
+    if (!userId) return;
+
+    const taskPayload = {
+      ...formTask,
+      related_lead_id: formTask.related_lead_id || null, // Garante que é null se vazio
+      due_date: formTask.due_date || null, // Supabase aceita null para datas opcionais
+    };
 
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .update({ status: newStatus })
-        .eq('id', taskId)
-        .eq('user_id', user.id)
-        .select();
-
-      if (error) throw error;
-
-      setTasks(tasks.map(task => 
-        task.id === taskId ? data[0] : task
-      ));
+      if (editingTask) {
+        await updateTaskMutation.mutateAsync({ ...taskPayload, id: editingTask.id });
+      } else {
+        await createTaskMutation.mutateAsync(taskPayload as InsertTask); // Cast para InsertTask
+      }
+      setDialogOpen(false);
+      setEditingTask(null);
+      setFormTask(initialFormState);
     } catch (error) {
-      console.error('Erro ao atualizar status da tarefa:', error);
+      console.error('Erro ao salvar tarefa:', error);
+      // Exibir toast/alert de erro
     }
   };
 
-  const resetForm = () => {
-    setNewTask({
-      title: '',
-      description: '',
-      priority: 'Medium',
-      status: 'Todo',
-      due_date: '',
-      related_lead_id: '',
-    }); // Corrected: Added semicolon
+  const handleDeleteTask = async (id: string) => {
+    try {
+      await deleteTaskMutation.mutateAsync(id);
+    } catch (error) {
+      console.error('Erro ao deletar tarefa:', error);
+      // Exibir toast/alert de erro
+    }
   };
 
-  const getTasksByStatus = (status: string) => {
-    return tasks.filter(task => task.status === status);
+  const handleStatusChange = async (taskId: string, newStatus: UpdateTask['status']) => {
+    try {
+      await updateTaskStatusMutation.mutateAsync({ taskId, status: newStatus });
+    } catch (error) {
+      console.error('Erro ao atualizar status da tarefa:', error);
+      // Exibir toast/alert de erro
+    }
   };
 
-  const getPriorityColor = (priority: string): BadgeProps["variant"] => {
+  const resetForm = () => { // Agora usado para fechar dialog também
+    setFormTask(initialFormState);
+  };
+
+  const getTasksByStatus = (statusKey: UpdateTask['status']) => {
+    return tasks.filter(task => task.status === statusKey);
+  };
+
+  const getPriorityBadgeVariant = (priority: string): BadgeProps["variant"] => {
     switch (priority) {
-    case 'Low': return 'default';
-    case 'Medium': return 'secondary';
-    case 'High': return 'destructive';
-    case 'Urgent': return 'destructive';
-    default: return 'outline';
-  }
-};
+      case 'Low': return 'default'; // Ou 'outline' ou 'secondary'
+      case 'Medium': return 'secondary'; // Ou 'default'
+      case 'High': return 'destructive'; // Mantém destructive para High
+      case 'Urgent': return 'destructive'; // Mantém destructive para Urgent
+      default: return 'outline';
+    }
+  };
 
-  if (loading) {
+  if (tasksLoading || leadsLoading) { // Considerar loading de leads também
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -265,7 +212,20 @@ export default function TasksPage() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
+          <p className="mt-2 text-muted-foreground">Carregando tarefas...</p>
         </div>
+      </AppLayout>
+    );
+  }
+
+  if (tasksError) {
+    return (
+      <AppLayout>
+        <Alert variant="destructive" className="m-4">
+          <AlertTriangle className="w-4 h-4" />
+          <AlertTitle>Erro ao Carregar Tarefas</AlertTitle>
+          <AlertDescription>{tasksError.message || 'Não foi possível carregar as tarefas.'}</AlertDescription>
+        </Alert>
       </AppLayout>
     );
   }
@@ -275,6 +235,7 @@ export default function TasksPage() {
       <div className="space-y-6">
         <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
+          {/* Botão Nova Tarefa agora usa handleOpenDialogForCreate */}
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -298,7 +259,7 @@ export default function TasksPage() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            onClick={() => handleEditTask(task)}
+                            onClick={() => handleOpenDialogForEdit(task)} // Usa novo handler
                             className="w-6 h-6"
                           >
                             <Edit2 className="w-4 h-4" />
@@ -321,7 +282,7 @@ export default function TasksPage() {
                       )}
 
                       <div className="flex items-center justify-between">
-                        <Badge variant={getPriorityColor(task.priority)}>
+                        <Badge variant={getPriorityBadgeVariant(task.priority)}>
                           {task.priority}
                         </Badge>
                         {task.due_date && (
@@ -339,7 +300,7 @@ export default function TasksPage() {
                               key={col.key}
                               size="xs"
                               variant="outline"
-                              onClick={() => handleStatusChange(task.id, col.key as any)}
+                              onClick={() => handleStatusChange(task.id, col.key)} // col.key já é do tipo correto
                               className="text-xs"
                             >
                               Mover para {col.title}
@@ -361,11 +322,11 @@ export default function TasksPage() {
           setDialogOpen(isOpen);
           if (!isOpen) {
             setEditingTask(null);
-            resetForm();
+            resetForm(); // Usa resetForm que limpa formTask
           }
         }}>
           <DialogTrigger asChild>
-             <Button size="sm" className={cn(dialogOpen && "hidden")}>
+             <Button size="sm" onClick={handleOpenDialogForCreate} className={cn(dialogOpen && "hidden")}>
                 <PlusCircle className="w-4 h-4 mr-2" />
                 Nova Tarefa
             </Button>
@@ -384,8 +345,8 @@ export default function TasksPage() {
                 </Label>
                 <Input
                   id="title"
-                  value={newTask.title}
-                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  value={formTask.title}
+                  onChange={(e) => setFormTask({ ...formTask, title: e.target.value })}
                   className="col-span-3"
                   required
                 />
@@ -396,8 +357,8 @@ export default function TasksPage() {
                 </Label>
                 <Textarea
                   id="description"
-                  value={newTask.description}
-                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  value={formTask.description}
+                  onChange={(e) => setFormTask({ ...formTask, description: e.target.value })}
                   className="col-span-3"
                   rows={3}
                 />
@@ -408,8 +369,8 @@ export default function TasksPage() {
                     Prioridade
                   </Label>
                   <Select
-                    value={newTask.priority}
-                    onValueChange={(value) => setNewTask({ ...newTask, priority: value as any })}
+                    value={formTask.priority}
+                    onValueChange={(value) => setFormTask({ ...formTask, priority: value as FormTaskState['priority'] })}
                   >
                     <SelectTrigger id="priority" className="col-span-3">
                       <SelectValue placeholder="Selecionar" />
@@ -427,8 +388,8 @@ export default function TasksPage() {
                     Status
                   </Label>
                   <Select
-                    value={newTask.status}
-                    onValueChange={(value) => setNewTask({ ...newTask, status: value as any })}
+                    value={formTask.status}
+                    onValueChange={(value) => setFormTask({ ...formTask, status: value as FormTaskState['status'] })}
                   >
                     <SelectTrigger id="status" className="col-span-3">
                       <SelectValue placeholder="Selecionar" />
@@ -448,8 +409,8 @@ export default function TasksPage() {
                 <Input
                   id="due_date"
                   type="date"
-                  value={newTask.due_date}
-                  onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                  value={formTask.due_date}
+                  onChange={(e) => setFormTask({ ...formTask, due_date: e.target.value })}
                   className="col-span-3"
                 />
               </div>
@@ -458,11 +419,12 @@ export default function TasksPage() {
                   Lead
                 </Label>
                 <Select
-                  value={newTask.related_lead_id}
-                  onValueChange={(value) => setNewTask({ ...newTask, related_lead_id: value })}
+                  value={formTask.related_lead_id || ''} // Select value não pode ser null
+                  onValueChange={(value) => setFormTask({ ...formTask, related_lead_id: value || null })}
+                  disabled={leadsLoading}
                 >
                   <SelectTrigger id="related_lead_id" className="col-span-3">
-                    <SelectValue placeholder="Nenhum" />
+                    <SelectValue placeholder={leadsLoading ? "Carregando leads..." : "Nenhum"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Nenhum</SelectItem>
@@ -481,8 +443,10 @@ export default function TasksPage() {
                   Cancelar
                 </Button>
               </DialogClose>
-              <Button type="submit" onClick={editingTask ? handleUpdateTask : handleCreateTask}>
-                {editingTask ? 'Atualizar Tarefa' : 'Criar Tarefa'}
+              <Button type="submit" onClick={handleSubmitTaskForm} disabled={createTaskMutation.isPending || updateTaskMutation.isPending}>
+                {editingTask ?
+                  (updateTaskMutation.isPending ? 'Atualizando...' : 'Atualizar Tarefa') :
+                  (createTaskMutation.isPending ? 'Criando...' : 'Criar Tarefa')}
               </Button>
             </DialogFooter>
           </DialogContent>

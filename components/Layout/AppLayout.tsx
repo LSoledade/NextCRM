@@ -32,9 +32,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Collapse } from '@/components/ui/collapsible';
+// import { Collapse } from '@/components/ui/collapsible'; // Removed unused import
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from "@/lib/utils";
+import ErrorBoundary from '@/components/ErrorBoundary'; // Importar o ErrorBoundary
 
 const drawerWidth = 280;
 const drawerCollapsedWidth = 64;
@@ -179,16 +180,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="w-8 h-8">
-                  <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
+                <AvatarImage src={user?.user_metadata?.avatar_url || user?.user_metadata?.picture || undefined} alt={user?.user_metadata?.name || user?.email || 'User'} />
                   <AvatarFallback>
-                    {user?.displayName ? user.displayName.charAt(0).toUpperCase() : <UserCircle className="w-5 h-5" />}
+                  {user?.user_metadata?.name ? user.user_metadata.name.charAt(0).toUpperCase() : user?.email ? user.email.charAt(0).toUpperCase() : <UserCircle className="w-5 h-5" />}
                   </AvatarFallback>
                 </Avatar>
                 <span className="sr-only">User menu</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>{user?.displayName || 'Minha Conta'}</DropdownMenuLabel>
+            <DropdownMenuLabel>{user?.user_metadata?.name || user?.email || 'Minha Conta'}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push('/profile')}> {/* Assuming a profile page */}
                 <UserCircle className="w-4 h-4 mr-2" />
@@ -203,7 +204,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </header>
         <main className="flex-1 p-4 overflow-auto bg-muted/40">
           <div className="p-4 bg-background rounded-lg shadow min-h-[calc(100vh-8rem)]">
-             {children}
+            <ErrorBoundary fallbackMessage="Ocorreu um erro ao carregar esta seção.">
+              {children}
+            </ErrorBoundary>
           </div>
         </main>
       </div>
@@ -246,16 +249,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="w-9 h-9">
-                <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
+                <AvatarImage src={user?.user_metadata?.avatar_url || user?.user_metadata?.picture || undefined} alt={user?.user_metadata?.name || user?.email || 'User'} />
                 <AvatarFallback>
-                  {user?.displayName ? user.displayName.charAt(0).toUpperCase() : <UserCircle className="w-5 h-5" />}
+                  {user?.user_metadata?.name ? user.user_metadata.name.charAt(0).toUpperCase() : user?.email ? user.email.charAt(0).toUpperCase() : <UserCircle className="w-5 h-5" />}
                 </AvatarFallback>
               </Avatar>
               <span className="sr-only">User menu</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>{user?.displayName || 'Minha Conta'}</DropdownMenuLabel>
+            <DropdownMenuLabel>{user?.user_metadata?.name || user?.email || 'Minha Conta'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push('/profile')}>
               <UserCircle className="w-4 h-4 mr-2" />
@@ -291,7 +294,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
           className="flex flex-col flex-1 h-full p-6 overflow-hidden bg-card rounded-lg shadow-sm"
         >
           <div className="flex-1 h-full overflow-auto">
-            {children}
+            <ErrorBoundary fallbackMessage="Ocorreu um erro ao carregar o conteúdo principal.">
+              {children}
+            </ErrorBoundary>
           </div>
         </div>
       </main>
