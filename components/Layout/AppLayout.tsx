@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -12,14 +12,13 @@ import {
   UserCircle,
   LogOut,
   Menu as MenuIcon,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -32,13 +31,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-// import { Collapse } from '@/components/ui/collapsible'; // Removed unused import
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from "@/lib/utils";
-import ErrorBoundary from '@/components/ErrorBoundary'; // Importar o ErrorBoundary
 
-const drawerWidth = 280;
-const drawerCollapsedWidth = 64;
+// Constants
+const SIDEBAR_EXPANDED_WIDTH = 240;
+const SIDEBAR_COLLAPSED_WIDTH = 72;
+const MOBILE_BREAKPOINT = 768;
 
 const menuItems = [
   { text: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -47,7 +47,7 @@ const menuItems = [
   { text: 'Treinadores', icon: Dumbbell, path: '/trainers' },
   { text: 'Alunos', icon: GraduationCap, path: '/students' },
   { text: 'Sessões', icon: Calendar, path: '/sessions' },
-];
+] as const;
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -55,251 +55,335 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Initialize sidebar state from localStorage immediately
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sidebar-expanded');
+      return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  });
+  
   const { user, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isMobile, setIsMobile] = useState(false);
 
+  // Memoized user initials
+  const userInitials = useMemo(() => {
+    if (!user?.displayName) return '';
+    return user.displayName
+      .split(' ')
+      .map(name => name.charAt(0))
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+  }, [user?.displayName]);
+
+  // Initialize component
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    setIsInitialized(true);
   }, []);
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
+  // Handle responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < MOBILE_BREAKPOINT;
+      setIsMobile(mobile);
+    };
 
-  const handleSidebarToggle = () => {
-    setSidebarExpanded(!sidebarExpanded);
-  };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-  const handleLogout = async () => {
-    await signOut();
-    router.replace('/login');
-  };
+  // Handlers
+  const handleSidebarToggle = useCallback(() => {
+    const newState = !sidebarExpanded;
+    setSidebarExpanded(newState);
+    localStorage.setItem('sidebar-expanded', JSON.stringify(newState));
+  }, [sidebarExpanded]);
 
-  const handleNavigation = (path: string) => {
+  const handleMobileToggle = useCallback(() => {
+    setMobileOpen(prev => !prev);
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await signOut();
+      router.replace('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  }, [signOut, router]);
+
+  const handleNavigation = useCallback((path: string) => {
     router.push(path);
     if (isMobile) {
       setMobileOpen(false);
     }
-  };
+  }, [router, isMobile]);
 
-  const currentDrawerWidthClass = sidebarExpanded ? `w-[${drawerWidth}px]` : `w-[${drawerCollapsedWidth}px]`;
+  // Animated Toggle Icon Component
+  const AnimatedToggleIcon = ({ isExpanded }: { isExpanded: boolean }) => (
+    <div className="relative h-5 w-5 transition-all duration-300 ease-out">
+      {/* Menu Icon - visible when sidebar is expanded */}
+      <div className={cn(
+        "absolute inset-0 transition-all duration-300 ease-out",
+        isExpanded ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-180 scale-75"
+      )}>
+        <MenuIcon className="h-5 w-5" />
+      </div>
+      
+      {/* Arrow Right Icon - visible when sidebar is collapsed */}
+      <div className={cn(
+        "absolute inset-0 transition-all duration-300 ease-out",
+        !isExpanded ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-180 scale-75"
+      )}>
+        <ChevronRight className="h-5 w-5" />
+      </div>
+    </div>
+  );
+  const NavigationItems = ({ collapsed = false }: { collapsed?: boolean }) => (
+    <>
+      {menuItems.map((item) => {
+        const isActive = pathname === item.path;
+        const IconComponent = item.icon;
 
-  const drawerContent = (
-    <div className="flex h-full flex-col bg-background transition-all duration-150 ease-in-out">
-      {/* Logo da Sidebar */}
-      <div
-        className={cn(
-          "flex items-center min-h-[64px] transition-all duration-150 ease-in-out",
-          sidebarExpanded ? "justify-start p-4" : "justify-center p-2"
-        )}
-      >
-        <div className="flex items-center gap-2">
-          <Dumbbell
+        const navButton = (
+          <Button
+            key={item.path}
+            variant={isActive ? "default" : "ghost"}
+            size={collapsed ? "icon" : "default"}
             className={cn(
-              "text-primary transition-all duration-150",
-              sidebarExpanded ? "h-7 w-7" : "h-6 w-6"
+              "w-full transition-all duration-200 ease-out",
+              collapsed ? "h-12 justify-center" : "h-12 justify-start",
+              isActive && [
+                "bg-primary text-primary-foreground shadow-sm",
+                "hover:bg-primary/90"
+              ],
+              !isActive && [
+                "hover:bg-accent/50 hover:text-accent-foreground",
+                "text-muted-foreground hover:text-foreground"
+              ]
             )}
-          />
-          {sidebarExpanded && (
-            <h1 className="text-lg font-semibold text-primary whitespace-nowrap">
-              FavaleTrainer
-            </h1>
+            onClick={() => handleNavigation(item.path)}
+          >
+            <IconComponent className={cn(
+              "h-5 w-5 transition-all duration-200",
+              !collapsed && "mr-3"
+            )} />
+            {!collapsed && (
+              <span className="font-medium truncate">{item.text}</span>
+            )}
+          </Button>
+        );
+
+        return collapsed ? (
+          <Tooltip key={item.path} delayDuration={300}>
+            <TooltipTrigger asChild>
+              {navButton}
+            </TooltipTrigger>
+            <TooltipContent side="right" className="font-medium">
+              {item.text}
+            </TooltipContent>
+          </Tooltip>
+        ) : navButton;
+      })}
+    </>
+  );
+
+  // Sidebar Content
+  const SidebarContent = ({ collapsed = false }: { collapsed?: boolean }) => (
+    <div className="flex h-full flex-col bg-background">
+      {/* Logo/Brand */}
+      <div className={cn(
+        "flex items-center transition-all duration-200 ease-out",
+        collapsed ? "justify-center p-3 min-h-[65px]" : "justify-start p-4 min-h-[65px]"
+      )}>
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "rounded-xl bg-primary/10 p-2 transition-all duration-200",
+            collapsed && "bg-primary/15"
+          )}>
+            <Dumbbell className={cn(
+              "text-primary transition-all duration-200",
+              collapsed ? "h-6 w-6" : "h-7 w-7"
+            )} />
+          </div>
+          {!collapsed && (
+            <div className="flex flex-col">
+              <h1 className="text-lg font-bold text-foreground leading-tight">
+                FavaleTrainer
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                Personal CRM
+              </p>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Lista de Navegação */}
-      <nav className="flex-1 px-2 py-4 space-y-1">
-        <TooltipProvider>
-          {menuItems.map((item) => {
-            const isSelected = pathname === item.path;
-            const IconComponent = item.icon;
-
-            const navItem = (
-              <Button
-                variant={isSelected ? "default" : "ghost"}
-                className={cn(
-                  "w-full justify-start text-sm font-medium h-11",
-                  !sidebarExpanded && "justify-center px-0",
-                  isSelected && "bg-primary text-primary-foreground hover:bg-primary/90",
-                  !isSelected && "hover:bg-accent hover:text-accent-foreground"
-                )}
-                onClick={() => handleNavigation(item.path)}
-              >
-                <IconComponent className={cn("h-5 w-5", sidebarExpanded && "mr-3")} />
-                {sidebarExpanded && <span>{item.text}</span>}
-              </Button>
-            );
-
-            return (
-              <div key={item.text}>
-                {!sidebarExpanded ? (
-                  <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      {navItem}
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>{item.text}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  navItem
-                )}
-              </div>
-            );
-          })}
-        </TooltipProvider>
+      {/* Navigation */}
+      <nav className="flex-1 p-3 space-y-1">
+        <NavigationItems collapsed={collapsed} />
       </nav>
     </div>
   );
 
+  // User Menu
+  const UserMenu = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="rounded-full ring-2 ring-transparent hover:ring-accent/20 transition-all duration-200"
+        >
+          <Avatar className="h-9 w-9">
+            <AvatarImage 
+              src={user?.photoURL || undefined} 
+              alt={user?.displayName || 'User'} 
+            />
+            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+              {userInitials || <UserCircle className="h-5 w-5" />}
+            </AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56" sideOffset={8}>
+        <DropdownMenuLabel className="font-semibold">
+          {user?.displayName || 'Minha Conta'}
+        </DropdownMenuLabel>
+        {user?.email && (
+          <p className="px-2 pb-2 text-sm text-muted-foreground">
+            {user.email}
+          </p>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem 
+          onClick={() => router.push('/profile')}
+          className="cursor-pointer"
+        >
+          <UserCircle className="h-4 w-4 mr-3" />
+          Perfil
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem 
+          onClick={handleLogout}
+          className="cursor-pointer text-destructive focus:text-destructive"
+        >
+          <LogOut className="h-4 w-4 mr-3" />
+          Sair
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  // Mobile Layout
   if (isMobile) {
-    // Layout mobile com Sheet
     return (
-      <div className="flex flex-col h-screen">
-        <header className="sticky top-0 z-10 flex items-center justify-between h-16 px-4 border-b bg-background">
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="md:hidden">
-                <MenuIcon className="w-6 h-6" />
-                <span className="sr-only">Abrir menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className={cn("w-[280px] p-0")}>
-              {drawerContent}
-            </SheetContent>
-          </Sheet>
-          <h1 className="text-lg font-semibold">CRM Personal Trainer</h1>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Avatar className="w-8 h-8">
-                <AvatarImage src={user?.user_metadata?.avatar_url || user?.user_metadata?.picture || undefined} alt={user?.user_metadata?.name || user?.email || 'User'} />
-                  <AvatarFallback>
-                  {user?.user_metadata?.name ? user.user_metadata.name.charAt(0).toUpperCase() : user?.email ? user.email.charAt(0).toUpperCase() : <UserCircle className="w-5 h-5" />}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="sr-only">User menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{user?.user_metadata?.name || user?.email || 'Minha Conta'}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push('/profile')}> {/* Assuming a profile page */}
-                <UserCircle className="w-4 h-4 mr-2" />
-                Perfil
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Sair
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </header>
-        <main className="flex-1 p-4 overflow-auto bg-muted/40">
-          <div className="p-4 bg-background rounded-lg shadow min-h-[calc(100vh-8rem)]">
-            <ErrorBoundary fallbackMessage="Ocorreu um erro ao carregar esta seção.">
-              {children}
-            </ErrorBoundary>
-          </div>
-        </main>
-      </div>
+      <TooltipProvider>
+        <div className="flex flex-col h-screen bg-background">
+          {/* Mobile Header */}
+          <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <MenuIcon className="h-6 w-6" />
+                  <span className="sr-only">Abrir menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-80 p-0">
+                <SidebarContent />
+              </SheetContent>
+            </Sheet>
+            
+            <h1 className="text-lg font-semibold text-foreground">
+              CRM Personal Trainer
+            </h1>
+            
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <UserMenu />
+            </div>
+          </header>
+
+          {/* Mobile Main Content */}
+          <main className="flex-1 overflow-hidden bg-background">
+            <div className="h-full p-4">
+              <div className="h-full main-content-container rounded-2xl shadow-lg overflow-hidden">
+                <div className="h-full p-6 overflow-auto">
+                  {children}
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </TooltipProvider>
     );
   }
 
-  // Layout desktop com CSS Grid e efeito visual moderno + sidebar expansível
+  // Desktop Layout
   return (
-    <div
-      className={cn(
-        "grid h-screen overflow-hidden bg-background transition-all duration-150 ease-in-out",
-        sidebarExpanded ? `grid-cols-[${drawerWidth}px_1fr]` : `grid-cols-[${drawerCollapsedWidth}px_1fr]`,
-        "grid-rows-[auto_1fr]",
-        "[grid-template-areas:_'sidebar_header'_'sidebar_content']"
-      )}
-    >
-      {/* Header - estilo Gmail */}
-      <header
-        className={cn(
-          "sticky top-0 z-10 flex items-center justify-between min-h-[64px] px-4 py-2 bg-background",
-          "[grid-area:header]"
-        )}
-      >
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleSidebarToggle}
-            className="text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          >
-            <MenuIcon className="w-6 h-6" />
-            <span className="sr-only">Toggle sidebar</span>
-          </Button>
-          <h1 className="text-lg font-medium text-foreground">
-            CRM Personal Trainer
-          </h1>
-        </div>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Avatar className="w-9 h-9">
-                <AvatarImage src={user?.user_metadata?.avatar_url || user?.user_metadata?.picture || undefined} alt={user?.user_metadata?.name || user?.email || 'User'} />
-                <AvatarFallback>
-                  {user?.user_metadata?.name ? user.user_metadata.name.charAt(0).toUpperCase() : user?.email ? user.email.charAt(0).toUpperCase() : <UserCircle className="w-5 h-5" />}
-                </AvatarFallback>
-              </Avatar>
-              <span className="sr-only">User menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>{user?.user_metadata?.name || user?.email || 'Minha Conta'}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/profile')}>
-              <UserCircle className="w-4 h-4 mr-2" />
-              Perfil
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </header>
+    <TooltipProvider>
+      <div className={cn(
+        "flex h-screen bg-background overflow-hidden",
+        !isInitialized && "opacity-0"
+      )}>
+        {/* Desktop Sidebar */}
+        <aside className={cn(
+          "flex flex-col transition-all duration-300 ease-out bg-background",
+          sidebarExpanded ? "w-60" : "w-[72px]"
+        )}>
+          <SidebarContent collapsed={!sidebarExpanded} />
+        </aside>
 
-      {/* Sidebar Expansível */}
-      <aside
-        className={cn(
-          "flex flex-col overflow-hidden bg-background transition-all duration-150 ease-in-out",
-          currentDrawerWidthClass,
-          "[grid-area:sidebar]"
-        )}
-      >
-        {drawerContent}
-      </aside>
+        {/* Desktop Main Area */}
+        <div className="flex flex-col flex-1 min-w-0">
+          {/* Desktop Header */}
+          <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSidebarToggle}
+                className="text-muted-foreground hover:text-foreground rounded-full h-10 w-10 transition-all duration-200 hover:bg-accent/50"
+              >
+                <AnimatedToggleIcon isExpanded={sidebarExpanded} />
+                <span className="sr-only">
+                  {sidebarExpanded ? 'Recolher menu' : 'Expandir menu'}
+                </span>
+              </Button>
+              <h1 className="text-xl font-semibold text-foreground">
+                CRM Personal Trainer
+              </h1>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <UserMenu />
+            </div>
+          </header>
 
-      {/* Conteúdo Principal com efeito visual */}
-      <main
-        className={cn(
-          "p-2 pb-3 flex flex-col h-full overflow-hidden transition-all duration-150 ease-in-out",
-          "[grid-area:content]"
-        )}
-      >
-        <div
-          className="flex flex-col flex-1 h-full p-6 overflow-hidden bg-card rounded-lg shadow-sm"
-        >
-          <div className="flex-1 h-full overflow-auto">
-            <ErrorBoundary fallbackMessage="Ocorreu um erro ao carregar o conteúdo principal.">
-              {children}
-            </ErrorBoundary>
-          </div>
+          {/* Desktop Main Content */}
+          <main className="flex-1 overflow-hidden bg-background">
+            <div className="h-full p-6">
+              <div className="h-full main-content-container rounded-3xl shadow-xl overflow-hidden backdrop-blur-sm">
+                <div className="h-full p-8 overflow-auto">
+                  {children}
+                </div>
+              </div>
+            </div>
+          </main>
         </div>
-      </main>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Outfit } from 'next/font/google';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ReactQueryProvider } from '@/contexts/ReactQueryProvider';
+import { ThemeProvider } from '@/components/theme-provider';
 
 const outfit = Outfit({ subsets: ['latin'] });
 
@@ -17,13 +18,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className={outfit.className}>
-        <ReactQueryProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange={false}
+        >
+          <ReactQueryProvider>
             <AuthProvider>
               {children}
             </AuthProvider>
-        </ReactQueryProvider>
+          </ReactQueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
