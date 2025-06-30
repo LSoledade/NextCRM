@@ -3,107 +3,91 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-// import { useToast } from '@/hooks/use-toast'; // Supondo que você tenha um hook de toast
+import { Database } from '@/types/database';
+
+type UserProfile = Database['public']['Tables']['users']['Row'] | null;
 
 interface AuthContextType {
   user: User | null;
+  userProfile: UserProfile;
   loading: boolean;
   signOut: () => Promise<void>;
-  // profileError: string | null; // Opcional: para expor erros de perfil
+  // profileError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile>(null);
   const [loading, setLoading] = useState(true);
-  const [profileChecked, setProfileChecked] = useState(false);
-  // const [profileError, setProfileError] = useState<string | null>(null); // Opcional
-  // const { toast } = useToast(); // Supondo que você tenha um hook de toast
+  // const [profileError, setProfileError] = useState<string | null>(null);
 
-  const ensureUserProfile = useCallback(async (authUser: User | null) => {
-    if (!authUser) {
-      setProfileChecked(false); // Reset if user logs out
-      // setProfileError(null);
-      return false;
-    }
-    if (profileChecked) {
-      console.log('Perfil já verificado para o usuário:', authUser.id);
-      return true; // Already checked for this session/user
-    }
-
-    console.log('Verificando perfil do usuário pela primeira vez na sessão:', authUser.id);
+  const fetchAndSetUserProfile = useCallback(async (authUser: User) => {
     // setProfileError(null);
-
     try {
-      const { data: existingUser, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from('users')
-        .select('id')
+        .select('*')
         .eq('id', authUser.id)
         .single();
 
-      if (fetchError && fetchError.code === 'PGRST116') { // "PGRST116" means no rows found
+      if (error && error.code === 'PGRST116') { // Profile not found, create it
         console.log('Perfil não encontrado, criando novo perfil do usuário...');
-        const { error: insertError } = await supabase.from('users').insert({
+        const newUserProfileData = {
           id: authUser.id,
           username: authUser.user_metadata?.name || authUser.email?.split('@')[0] || `user_${authUser.id.substring(0, 8)}`,
-          email: authUser.email, // Store email if available
-          role: 'user', // Default role
-          // avatar_url: authUser.user_metadata?.avatar_url // Store avatar if available
-        });
+          // email: authUser.email, // O email já está no objeto `user` do Supabase Auth. Redundante armazenar aqui a menos que haja um motivo específico.
+          role: 'user' as const, // Default role
+        };
+        const { data: createdProfile, error: insertError } = await supabase
+          .from('users')
+          .insert(newUserProfileData)
+          .select()
+          .single();
 
         if (insertError) {
           console.error('Erro crítico ao criar perfil do usuário:', insertError);
           // setProfileError(`Falha ao criar perfil: ${insertError.message}`);
-          // toast({ title: "Erro de Perfil", description: "Não foi possível criar seu perfil. Algumas funcionalidades podem não estar disponíveis.", variant: "destructive" });
-          setProfileChecked(true); // Mark as checked to avoid retries, even on failure
-          return false;
+          setUserProfile(null); // Explicitly set to null on failure
+          return;
         }
-        console.log('Perfil do usuário criado com sucesso');
-        setProfileChecked(true);
-        return true;
-      } else if (fetchError) {
-        console.error('Erro ao verificar existência do usuário na tabela "users":', fetchError);
-        // setProfileError(`Falha ao verificar perfil: ${fetchError.message}`);
-        // toast({ title: "Erro de Perfil", description: "Não foi possível verificar seu perfil. Tente recarregar a página.", variant: "destructive" });
-        setProfileChecked(true); // Mark as checked to avoid retries
-        return false;
+        console.log('Perfil do usuário criado com sucesso:', createdProfile);
+        setUserProfile(createdProfile as UserProfile);
+      } else if (error) {
+        console.error('Erro ao buscar perfil do usuário:', error);
+        // setProfileError(`Falha ao buscar perfil: ${error.message}`);
+        setUserProfile(null);
+      } else {
+        console.log('Perfil do usuário carregado:', data);
+        setUserProfile(data as UserProfile);
       }
-
-      console.log('Perfil do usuário já existe:', existingUser?.id);
-      setProfileChecked(true);
-      return true;
-    } catch (error: any) {
-      console.error('Erro inesperado ao garantir perfil do usuário:', error);
-      // setProfileError(`Erro inesperado: ${error.message}`);
-      // toast({ title: "Erro Inesperado", description: "Ocorreu um erro ao processar seu perfil.", variant: "destructive" });
-      setProfileChecked(true); // Mark as checked
-      return false;
+    } catch (e: any) {
+      console.error('Erro inesperado ao buscar/criar perfil do usuário:', e);
+      // setProfileError(`Erro inesperado: ${e.message}`);
+      setUserProfile(null);
     }
-  }, [profileChecked]); // Adicionado toast como dependência se usado
+  }, []);
 
   useEffect(() => {
     const getInitialSession = async () => {
+      setLoading(true);
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          // console.error('Erro ao buscar sessão inicial:', sessionError);
-          throw sessionError;
-        }
+        if (sessionError) throw sessionError;
         
         const sessionUser = session?.user ?? null;
-        setUser(sessionUser); // Set user first
+        setUser(sessionUser);
 
         if (sessionUser) {
-          // Não resetar profileChecked aqui, pois pode ser uma sessão persistente
-          await ensureUserProfile(sessionUser);
+          await fetchAndSetUserProfile(sessionUser);
         } else {
-          setProfileChecked(false); // No user, so profile isn't checked
+          setUserProfile(null);
         }
       } catch (error) {
         console.error('Falha ao processar sessão inicial:', error);
         setUser(null);
-        setProfileChecked(false);
+        setUserProfile(null);
       } finally {
         setLoading(false);
       }
@@ -114,22 +98,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setLoading(true);
-        // setProfileError(null);
         const sessionUser = session?.user ?? null;
-        setUser(sessionUser); // Update user state immediately
+        setUser(sessionUser);
 
-        if (event === 'SIGNED_IN' && sessionUser) {
-          setProfileChecked(false); // Reset for new sign-in, ensure fresh check
-          await ensureUserProfile(sessionUser);
-        } else if (event === 'SIGNED_OUT') {
-          setProfileChecked(false); // User signed out
-        } else if (event === 'USER_UPDATED' && sessionUser) {
-            // Potentially re-check profile if user metadata might have changed
-            // For now, let's assume ensureUserProfile handles existing but potentially stale data if needed
-            // or rely on manual profile updates elsewhere.
-            // If critical, could do:
-            // setProfileChecked(false);
-            // await ensureUserProfile(sessionUser);
+        if (sessionUser) {
+          // Fetch profile on SIGNED_IN or if user object changes (e.g. USER_UPDATED)
+          // For other events like TOKEN_REFRESHED, user object might be the same, profile might not need refetch unless specifically needed.
+          if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || !userProfile) { // also fetch if no profile yet
+            await fetchAndSetUserProfile(sessionUser);
+          }
+        } else {
+          setUserProfile(null); // Clear profile on SIGNED_OUT
         }
         setLoading(false);
       }
@@ -138,18 +117,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, [ensureUserProfile]);
+  }, [fetchAndSetUserProfile, userProfile]); // Added userProfile to dependencies
 
   const signOut = async () => {
     setLoading(true);
     try {
       await supabase.auth.signOut();
       setUser(null);
-      setProfileChecked(false);
+      setUserProfile(null);
       // setProfileError(null);
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
-      // toast({ title: "Erro de Logout", description: "Não foi possível fazer logout. Tente novamente.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -157,9 +135,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = {
     user,
+    userProfile,
     loading,
     signOut,
-    // profileError, // Opcional
+    // profileError,
   };
 
   return (
