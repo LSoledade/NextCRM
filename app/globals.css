@@ -2,295 +2,118 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
-}
-
 @layer base {
+  /* Definição das variáveis de cor para o tema */
   :root {
-    /* Light mode colors - Google Material Design inspired */
-    --background: 0 0% 100%;                    /* Pure white */
-    --foreground: 0 0% 3.9%;                   /* Near black text */
-    --card: 0 0% 100%;                         /* White cards */
-    --card-foreground: 0 0% 3.9%;             /* Dark text on cards */
-    --popover: 0 0% 100%;                      /* White popovers */
-    --popover-foreground: 0 0% 3.9%;          /* Dark text in popovers */
+    /* --- Tema Claro --- */
+    --background: 0 0% 100%;                  /* Fundo geral (Header, Sidebar) */
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;                        /* Fundo de cards menores */
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
     --primary: 2 81% 55%;                      /* Vermelho Favale: #E9342E */
-    --primary-foreground: 0 0% 100%;          /* White text on primary */
-    --secondary: 210 40% 96%;                  /* Light gray background */
-    --secondary-foreground: 0 0% 9%;          /* Dark text on secondary */
-    --muted: 210 40% 96%;                      /* Very light gray */
-    --muted-foreground: 0 0% 45.1%;           /* Medium gray text */
-    --accent: 210 40% 96%;                     /* Accent same as muted */
-    --accent-foreground: 0 0% 9%;             /* Dark text on accent */
-    --destructive: 0 84.2% 60.2%;             /* Red for destructive actions */
-    --destructive-foreground: 0 0% 98%;       /* White text on destructive */
-    --border: 0 0% 89.8%;                     /* Light gray borders */
-    --input: 0 0% 89.8%;                      /* Input border color */
-    --ring: 2 81% 55%;                        /* Focus ring (primary color) */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 2 81% 55%;
+    --radius: 0.5rem;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    /* No modo claro, o conteúdo principal tem o mesmo fundo */
+    --main-content-bg: 0 0% 100%;
   }
-  
+
   .dark {
-    /* Dark mode colors - Gmail/Google style dark theme */
-    --background: 220 13% 9%;                  /* #171717 Dark background */
-    --foreground: 0 0% 95%;                    /* #f2f2f2 Light text */
-    --card: 220 13% 11%;                       /* #1f1f1f Slightly lighter than bg */
-    --card-foreground: 0 0% 95%;              /* Light text on cards */
-    --popover: 220 13% 11%;                   /* Dark popover background */
-    --popover-foreground: 0 0% 95%;           /* Light text in popovers */
-    --primary: 2 81% 55%;                     /* Keep Favale red in dark mode */
-    --primary-foreground: 0 0% 100%;          /* White text on primary */
-    --secondary: 220 13% 15%;                 /* #262626 Dark secondary */
-    --secondary-foreground: 0 0% 85%;         /* Light gray text */
-    --muted: 220 13% 15%;                     /* #262626 Muted background */
-    --muted-foreground: 0 0% 60%;             /* Medium gray text */
-    --accent: 220 13% 15%;                    /* Dark accent background */
-    --accent-foreground: 0 0% 95%;            /* Light text on accent */
-    --destructive: 0 84.2% 60.2%;            /* Keep destructive red */
-    --destructive-foreground: 0 0% 95%;       /* Light text on destructive */
-    --border: 220 13% 20%;                    /* #333333 Dark borders */
-    --input: 220 13% 20%;                     /* Dark input borders */
-    --ring: 2 81% 55%;                        /* Keep primary focus ring */
+    /* --- Tema Escuro --- */
+    /* NOVA COR PARA HEADER E SIDEBAR */
+    --background: 0 0% 7%;                    /* #121212 */
+    --foreground: 0 0% 95%;
+    --card: 220 13% 11%;                       /* Fundo de cards menores: #1f1f1f */
+    --card-foreground: 0 0% 95%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 2 81% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 13% 15%;
+    --secondary-foreground: 0 0% 85%;
+    --muted: 220 13% 15%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 220 13% 15%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 95%;
+    --border: 220 13% 20%;
+    --input: 220 13% 20%;
+    --ring: 2 81% 55%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    
-    /* Custom variable for main content container */
-    --main-content-bg: 0 0% 19%;              /* #303030 for main content differentiation */
+    /* Cor do conteúdo principal mantida */
+    --main-content-bg: 0 0% 17.3%;             /* #2c2c2c */
   }
 }
 
 @layer base {
+  /* --- Estilos Base Globais --- */
   * {
     @apply border-border;
   }
   
   body {
-    @apply bg-background text-foreground transition-colors duration-300;
+    @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   
-  /* Improved scrollbar styling for dark mode */
+  /* --- Estilo do Container do Conteúdo Principal --- */
+  .main-content-container {
+    background-color: hsl(var(--main-content-bg));
+  }
+  
+  /* --- Estilos de Scrollbar --- */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   
   ::-webkit-scrollbar-track {
-    @apply bg-muted/30 rounded-full;
+    @apply bg-transparent;
   }
   
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-full;
+    @apply bg-border rounded-full;
   }
   
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/50;
   }
-  
-  ::-webkit-scrollbar-corner {
-    @apply bg-transparent;
-  }
-  
-  /* Dark mode specific scrollbar adjustments */
-  .dark ::-webkit-scrollbar-track {
-    @apply bg-muted/20;
-  }
-  
-  .dark ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/40;
-  }
-  
-  .dark ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/60;
-  }
-  
-  /* Selection styling */
+
+  /* --- Estilos de Seleção de Texto --- */
   ::selection {
-    @apply bg-primary/20 text-primary-foreground;
-  }
-  
-  .dark ::selection {
-    @apply bg-primary/30;
-  }
-  
-  /* Focus visible improvements */
-  *:focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
-  }
-  
-  /* Improved transitions for theme switching */
-  * {
-    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 200ms;
-  }
-  
-  /* High contrast mode support */
-  @media (prefers-contrast: high) {
-    .dark {
-      --border: 0 0% 40%;
-      --input: 0 0% 40%;
-      --muted-foreground: 0 0% 70%;
-    }
-  }
-  
-  /* Reduced motion support */
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-  
-  /* Main content container styling */
-  .main-content-container {
-    background: hsl(var(--background));
-  }
-  
-  .dark .main-content-container {
-    background: hsl(var(--main-content-bg));
-  }
-  
-  /* Print styles */
-  @media print {
-    * {
-      background: transparent !important;
-      color: black !important;
-      box-shadow: none !important;
-      text-shadow: none !important;
-    }
-    
-    body {
-      background: white !important;
-    }
+    @apply bg-primary/20;
   }
 }
 
-/* ===== FIX PARA DROPDOWNS ===== */
+/* --- Camada de Componentes Customizados (Opcional) --- */
 @layer components {
-  /* Fix para elementos do Radix UI que podem ter problemas de posicionamento */
-  
-  /* Garante que portals tenham z-index correto e não sejam afetados por transforms */
+  /* Garante que os Portals do Radix UI (usados por dropdowns, dialogs, etc.) 
+     tenham um z-index elevado para ficarem sobre outros conteúdos. */
   [data-radix-popper-content-wrapper] {
     z-index: 50 !important;
-    position: fixed !important;
-  }
-  
-  /* Fix específico para Select, DropdownMenu, Popover, etc. */
-  [data-radix-select-content],
-  [data-radix-dropdown-menu-content],
-  [data-radix-popover-content],
-  [data-radix-tooltip-content],
-  [data-radix-hover-card-content] {
-    z-index: 50 !important;
-    /* Remove animações problemáticas que podem causar o "slide" do topo */
-    transform-origin: var(--radix-dropdown-menu-content-transform-origin, var(--radix-popover-content-transform-origin, center)) !important;
-  }
-  
-  /* Remove animações de entrada problemáticas */
-  [data-radix-select-content][data-state="open"],
-  [data-radix-dropdown-menu-content][data-state="open"],
-  [data-radix-popover-content][data-state="open"] {
-    animation-duration: 150ms !important;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
-  }
-  
-  /* Fix para tooltips */
-  [data-radix-tooltip-content] {
-    animation-duration: 200ms !important;
-  }
-  
-  /* Garante que elementos pai não afetem o posicionamento dos dropdowns */
-  .main-content-container,
-  [data-radix-portal] {
-    transform: none !important;
-  }
-  
-  /* Fix específico para elementos que podem ter transform e afetar o posicionamento */
-  .sidebar-container,
-  .app-layout-container {
-    transform: none !important;
-  }
-}
-
-/* ===== FIX PARA COMPONENTES ESPECÍFICOS ===== */
-@layer utilities {
-  /* Classe para corrigir posicionamento de dropdowns */
-  .dropdown-fix {
-    position: relative;
-    transform: none !important;
-  }
-  
-  /* Garante que portals sejam renderizados corretamente */
-  .portal-root {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 9999;
-    pointer-events: none;
-  }
-  
-  .portal-root > * {
-    pointer-events: auto;
-  }
-  
-  /* Remove transforms que podem afetar o positioning context */
-  .no-transform {
-    transform: none !important;
-  }
-  
-  /* Fix para animações de entrada suaves */
-  .dropdown-enter {
-    animation: dropdown-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  
-  .dropdown-exit {
-    animation: dropdown-out 150ms cubic-bezier(0.4, 0, 1, 1);
-  }
-}
-
-/* ===== KEYFRAMES PARA ANIMAÇÕES SUAVES ===== */
-@keyframes dropdown-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes dropdown-out {
-  from {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.95) translateY(-2px);
   }
 }
