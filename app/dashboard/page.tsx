@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react'; // Ensured React is imported
+import React, { useState, useEffect } from 'react'; // useEffect e useState ainda são usados em GreetingWidget
 import {
   Card,
   CardContent,
@@ -9,7 +9,7 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Alert as ShadAlert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge, type BadgeProps } from '@/components/ui/badge'; // type BadgeProps for variant typing
+import { Badge, type BadgeProps } from '@/components/ui/badge';
 import {
   TrendingUp,
   Users,
@@ -23,31 +23,18 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import AppLayout from '@/components/Layout/AppLayout';
-import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedDashboardStats, DashboardStats } from '@/hooks/useOptimizedDashboardStats';
+
+// Tipos como Lead, Session, Student não são mais necessários diretamente aqui
+// O tipo DashboardStats é importado do hook.
+type Task = Database['public']['Tables']['tasks']['Row']; // Task ainda é necessário para TodayTasksWidget
+// Certifique-se que Database está importado se Task depende dele, ou defina Task de forma mais genérica se possível.
+// Para este exemplo, vamos assumir que Task pode ser usado como está ou que Database está disponível globalmente/implicitamente.
+// Se Database for realmente necessário para o tipo Task, ele precisaria ser importado:
 import { Database } from '@/types/database';
 
-type Lead = Database['public']['Tables']['leads']['Row'];
-type Task = Database['public']['Tables']['tasks']['Row'];
-type Session = Database['public']['Tables']['sessions']['Row'];
-type Student = Database['public']['Tables']['students']['Row'];
-
-interface DashboardStats {
-  totalLeads: number;
-  totalStudents: number;
-  totalActiveSessions: number;
-  totalCompletedSessions: number;
-  newLeads: number;
-  convertedLeads: number;
-  pendingTasks: number;
-  completedTasks: number;
-  todaySessions: number;
-  conversionRate: number;
-  sessionsPerStudent: number;
-  leadsBySource: Record<string, number>;
-  leadsByStatus: Record<string, number>;
-}
 
 interface KpiCardProps {
   title: string;
@@ -172,104 +159,13 @@ function TodayTasksWidget({ todayTasks }: { todayTasks: Task[] }) {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [todayTasks, setTodayTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      loadDashboardData();
-    }
-  }, [user]);
-
-  const loadDashboardData = async () => {
-    if (!user) return;
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const [
-        { data: leads, error: leadsError },
-        { data: tasks, error: tasksError },
-        { data: sessions, error: sessionsError },
-        { data: students, error: studentsError }
-      ] = await Promise.all([
-        supabase.from('leads').select('*').eq('user_id', user.id),
-        supabase.from('tasks').select('*').eq('user_id', user.id),
-        supabase.from('sessions').select('*').eq('user_id', user.id),
-        supabase.from('students').select('*').eq('user_id', user.id)
-      ]);
-
-      if (leadsError) throw new Error(`Leads: ${leadsError.message}`);
-      if (tasksError) throw new Error(`Tasks: ${tasksError.message}`);
-      if (sessionsError) throw new Error(`Sessions: ${sessionsError.message}`);
-      if (studentsError) throw new Error(`Students: ${studentsError.message}`);
-      
-      const today = new Date().toISOString().split('T')[0];
-      const totalLeads = leads?.length || 0;
-      const totalStudents = students?.length || 0;
-      const newLeadsCount = leads?.filter(lead => lead.status === 'New').length || 0;
-      const convertedLeads = leads?.filter(lead => lead.status === 'Converted').length || 0;
-      const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
-      const pendingTasks = tasks?.filter(task => task.status !== 'Done').length || 0;
-      const completedTasks = tasks?.filter(task => task.status === 'Done').length || 0;
-      const activeSessions = sessions?.filter(session => 
-        session.status === 'Scheduled' || session.status === 'InProgress'
-      ).length || 0;
-      const completedSessions = sessions?.filter(session => 
-        session.status === 'Completed'
-      ).length || 0;
-      const todaySessionsCount = sessions?.filter(session => 
-        session.start_time && session.start_time.startsWith(today)
-      ).length || 0;
-      const sessionsPerStudent = totalStudents > 0 ? 
-        Math.round((sessions?.length || 0) / totalStudents * 10) / 10 : 0;
-
-      const leadsBySource: Record<string, number> = {};
-      leads?.forEach(lead => {
-        const source = lead.source || 'Sem origem';
-        leadsBySource[source] = (leadsBySource[source] || 0) + 1;
-      });
-
-      const leadsByStatus: Record<string, number> = {};
-      leads?.forEach(lead => {
-        leadsByStatus[lead.status] = (leadsByStatus[lead.status] || 0) + 1;
-      });
-
-      const todayTasksList = tasks?.filter(task => 
-        task.due_date && 
-        task.due_date.startsWith(today) && 
-        task.status !== 'Done'
-      ).sort((a, b) => {
-        if (!a.due_date || !b.due_date) return 0;
-        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-      }) || [];
-
-      setStats({
-        totalLeads,
-        totalStudents,
-        totalActiveSessions: activeSessions,
-        totalCompletedSessions: completedSessions,
-        newLeads: newLeadsCount,
-        convertedLeads,
-        pendingTasks,
-        completedTasks,
-        todaySessions: todaySessionsCount,
-        conversionRate,
-        sessionsPerStudent,
-        leadsBySource,
-        leadsByStatus,
-      });
-      setTodayTasks(todayTasksList);
-    } catch (err: any) {
-      console.error('Erro ao carregar dados do dashboard:', err);
-      setError(err.message || 'Erro ao carregar dados do dashboard');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { user } = useAuth(); // Mantido para GreetingWidget, que tem seu próprio useEffect e useState
+  const {
+    stats,
+    todayTasks,
+    isLoading: loading,
+    error
+  } = useOptimizedDashboardStats();
 
   if (loading) {
     return (
@@ -285,13 +181,13 @@ export default function DashboardPage() {
     );
   }
 
-  if (error || !stats) {
+  if (error || !stats) { // Adicionado !stats para cobrir o caso de erro sem mensagem ou stats nulo
     return (
       <AppLayout>
         <ShadAlert variant="destructive" className="m-4">
           <AlertTriangle className="w-4 h-4" />
           <AlertTitle>Erro</AlertTitle>
-          <AlertDescription>{error || 'Não foi possível carregar os dados do dashboard.'}</AlertDescription>
+          <AlertDescription>{error?.message || 'Não foi possível carregar os dados do dashboard.'}</AlertDescription>
         </ShadAlert>
       </AppLayout>
     );
@@ -302,7 +198,7 @@ export default function DashboardPage() {
       <div className="p-4 space-y-6 md:p-6">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <GreetingWidget />
+            <GreetingWidget /> {/* user de useAuth() é usado aqui dentro */}
           </div>
           <div>
             <TodayTasksWidget todayTasks={todayTasks} />
@@ -314,7 +210,7 @@ export default function DashboardPage() {
             title="Total de Leads"
             value={stats.totalLeads}
             icon={<Users />}
-            change="+5%"
+            change="+5%" // Estes valores de 'change' são mockados, idealmente viriam de um cálculo
             iconClassName="text-primary"
           />
           <KpiCard
@@ -361,7 +257,7 @@ export default function DashboardPage() {
             iconClassName="text-purple-500"
           />
           <KpiCard
-            title="Leads Novos (30d)"
+            title="Leads Novos (30d)" // Assumindo que 'newLeads' se refere a este período
             value={stats.newLeads}
             icon={<Sparkles />}
             change="+18%"
