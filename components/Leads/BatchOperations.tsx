@@ -2,15 +2,15 @@
 
 import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  OptimizedSelect,
+  OptimizedSelectContent,
+  OptimizedSelectItem,
+  OptimizedSelectTrigger,
+  OptimizedSelectValue,
+} from '@/components/ui/optimized-select';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label'; // For better form structure if needed
-import { X, Trash2 } from 'lucide-react'; // Replaced icons
+import { Label } from '@/components/ui/label';
+import { X, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BatchOperationsProps {
@@ -53,42 +53,36 @@ export default function BatchOperations({
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="min-w-[180px]">
+        <div className="min-w-[180px] dropdown-fix">
           <Label htmlFor="batchStatus" className="sr-only">Alterar Status</Label>
-          <Select
-            onValueChange={onBatchStatusUpdate}
-            // value="" // Control this externally or leave uncontrolled if it's a one-time action trigger
-          >
-            <SelectTrigger id="batchStatus" className="h-9">
-              <SelectValue placeholder="Alterar Status para..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="New">Novo</SelectItem>
-              <SelectItem value="Contacted">Contatado</SelectItem>
-              <SelectItem value="Converted">Convertido</SelectItem>
-              <SelectItem value="Lost">Perdido</SelectItem>
-            </SelectContent>
-          </Select>
+          <OptimizedSelect onValueChange={onBatchStatusUpdate}>
+            <OptimizedSelectTrigger id="batchStatus" className="h-9">
+              <OptimizedSelectValue placeholder="Alterar Status para..." />
+            </OptimizedSelectTrigger>
+            <OptimizedSelectContent>
+              <OptimizedSelectItem value="New">Novo</OptimizedSelectItem>
+              <OptimizedSelectItem value="Contacted">Contatado</OptimizedSelectItem>
+              <OptimizedSelectItem value="Converted">Convertido</OptimizedSelectItem>
+              <OptimizedSelectItem value="Lost">Perdido</OptimizedSelectItem>
+            </OptimizedSelectContent>
+          </OptimizedSelect>
         </div>
         
-        <div className="min-w-[180px]">
-           <Label htmlFor="batchSource" className="sr-only">Alterar Origem</Label>
-          <Select
-            onValueChange={onBatchSourceUpdate}
-            // value=""
-          >
-            <SelectTrigger id="batchSource" className="h-9">
-              <SelectValue placeholder="Alterar Origem para..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Favale">Favale</SelectItem>
-              <SelectItem value="Pink">Pink</SelectItem>
-              <SelectItem value="Instagram">Instagram</SelectItem>
-              <SelectItem value="Facebook">Facebook</SelectItem>
-              <SelectItem value="Site">Site</SelectItem>
-              <SelectItem value="Indicação">Indicação</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="min-w-[180px] dropdown-fix">
+          <Label htmlFor="batchSource" className="sr-only">Alterar Origem</Label>
+          <OptimizedSelect onValueChange={onBatchSourceUpdate}>
+            <OptimizedSelectTrigger id="batchSource" className="h-9">
+              <OptimizedSelectValue placeholder="Alterar Origem para..." />
+            </OptimizedSelectTrigger>
+            <OptimizedSelectContent>
+              <OptimizedSelectItem value="Favale">Favale</OptimizedSelectItem>
+              <OptimizedSelectItem value="Pink">Pink</OptimizedSelectItem>
+              <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
+              <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
+              <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
+              <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
+            </OptimizedSelectContent>
+          </OptimizedSelect>
         </div>
 
         <Button

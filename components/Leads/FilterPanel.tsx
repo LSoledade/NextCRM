@@ -3,21 +3,21 @@
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  OptimizedSelect,
+  OptimizedSelectContent,
+  OptimizedSelectItem,
+  OptimizedSelectTrigger,
+  OptimizedSelectValue,
+} from '@/components/ui/optimized-select';
 import { Button } from '@/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Label } from '@/components/ui/label'; // For better form structure
-import { Badge } from '@/components/ui/badge'; // For active filter count
-import { Filter, XCircle, ChevronDown, ChevronUp, Search } from 'lucide-react'; // Replaced icons
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Filter, XCircle, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FilterState {
@@ -121,58 +121,64 @@ export default function FilterPanel({
           />
         </div>
 
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 dropdown-fix">
           <Label htmlFor="sourceFilter" className="sr-only">Origem</Label>
-          <Select
+          <OptimizedSelect
             value={filters.source}
             onValueChange={(value) => onFiltersChange({ ...filters, source: value === 'all' ? '' : value })}
           >
-            <SelectTrigger id="sourceFilter"><SelectValue placeholder="Origem" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as Origens</SelectItem>
-              <SelectItem value="Favale">Favale</SelectItem>
-              <SelectItem value="Pink">Pink</SelectItem>
-              <SelectItem value="Instagram">Instagram</SelectItem>
-              <SelectItem value="Facebook">Facebook</SelectItem>
-              <SelectItem value="Site">Site</SelectItem>
-              <SelectItem value="Indicação">Indicação</SelectItem>
-            </SelectContent>
-          </Select>
+            <OptimizedSelectTrigger id="sourceFilter">
+              <OptimizedSelectValue placeholder="Origem" />
+            </OptimizedSelectTrigger>
+            <OptimizedSelectContent>
+              <OptimizedSelectItem value="all">Todas as Origens</OptimizedSelectItem>
+              <OptimizedSelectItem value="Favale">Favale</OptimizedSelectItem>
+              <OptimizedSelectItem value="Pink">Pink</OptimizedSelectItem>
+              <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
+              <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
+              <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
+              <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
+            </OptimizedSelectContent>
+          </OptimizedSelect>
         </div>
 
-        <div className="md:col-span-2">
-           <Label htmlFor="statusFilter" className="sr-only">Status</Label>
-          <Select
+        <div className="md:col-span-2 dropdown-fix">
+          <Label htmlFor="statusFilter" className="sr-only">Status</Label>
+          <OptimizedSelect
             value={filters.status}
             onValueChange={(value) => onFiltersChange({ ...filters, status: value === 'all' ? '' : value })}
           >
-            <SelectTrigger id="statusFilter"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="New">Novo</SelectItem>
-              <SelectItem value="Contacted">Contatado</SelectItem>
-              <SelectItem value="Converted">Convertido</SelectItem>
-              <SelectItem value="Lost">Perdido</SelectItem>
-            </SelectContent>
-          </Select>
+            <OptimizedSelectTrigger id="statusFilter">
+              <OptimizedSelectValue placeholder="Status" />
+            </OptimizedSelectTrigger>
+            <OptimizedSelectContent>
+              <OptimizedSelectItem value="all">Todos os Status</OptimizedSelectItem>
+              <OptimizedSelectItem value="New">Novo</OptimizedSelectItem>
+              <OptimizedSelectItem value="Contacted">Contatado</OptimizedSelectItem>
+              <OptimizedSelectItem value="Converted">Convertido</OptimizedSelectItem>
+              <OptimizedSelectItem value="Lost">Perdido</OptimizedSelectItem>
+            </OptimizedSelectContent>
+          </OptimizedSelect>
         </div>
 
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 dropdown-fix">
           <Label htmlFor="campaignFilter" className="sr-only">Campanha</Label>
-          <Select
+          <OptimizedSelect
             value={filters.campaign}
             onValueChange={(value) => onFiltersChange({ ...filters, campaign: value === 'all' ? '' : value })}
           >
-            <SelectTrigger id="campaignFilter"><SelectValue placeholder="Campanha" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as Campanhas</SelectItem>
-              <SelectItem value="Instagram">Instagram</SelectItem>
-              <SelectItem value="Facebook">Facebook</SelectItem>
-              <SelectItem value="Email">E-mail</SelectItem>
-              <SelectItem value="Site">Site</SelectItem>
-              <SelectItem value="Indicação">Indicação</SelectItem>
-            </SelectContent>
-          </Select>
+            <OptimizedSelectTrigger id="campaignFilter">
+              <OptimizedSelectValue placeholder="Campanha" />
+            </OptimizedSelectTrigger>
+            <OptimizedSelectContent>
+              <OptimizedSelectItem value="all">Todas as Campanhas</OptimizedSelectItem>
+              <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
+              <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
+              <OptimizedSelectItem value="Email">E-mail</OptimizedSelectItem>
+              <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
+              <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
+            </OptimizedSelectContent>
+          </OptimizedSelect>
         </div>
 
         <CollapsibleTrigger asChild className="md:col-span-2">
@@ -210,59 +216,64 @@ export default function FilterPanel({
           </div>
           
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <div>
+            <div className="dropdown-fix">
               <Label htmlFor="stateFilterAdv" className="text-xs text-muted-foreground">Estado</Label>
-              <Select
+              <OptimizedSelect
                 value={filters.state}
                 onValueChange={(value) => onFiltersChange({ ...filters, state: value === 'all' ? '' : value })}
               >
-                <SelectTrigger id="stateFilterAdv"><SelectValue placeholder="Estado" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="SP">São Paulo</SelectItem>
-                  <SelectItem value="RJ">Rio de Janeiro</SelectItem>
-                  <SelectItem value="MG">Minas Gerais</SelectItem>
-                  {/* Add other states as needed */}
-                </SelectContent>
-              </Select>
+                <OptimizedSelectTrigger id="stateFilterAdv">
+                  <OptimizedSelectValue placeholder="Estado" />
+                </OptimizedSelectTrigger>
+                <OptimizedSelectContent>
+                  <OptimizedSelectItem value="all">Todos</OptimizedSelectItem>
+                  <OptimizedSelectItem value="SP">São Paulo</OptimizedSelectItem>
+                  <OptimizedSelectItem value="RJ">Rio de Janeiro</OptimizedSelectItem>
+                  <OptimizedSelectItem value="MG">Minas Gerais</OptimizedSelectItem>
+                </OptimizedSelectContent>
+              </OptimizedSelect>
             </div>
             
-            <div>
+            <div className="dropdown-fix">
               <Label htmlFor="tagFilterAdv" className="text-xs text-muted-foreground">Tag</Label>
-              <Select
+              <OptimizedSelect
                 value={filters.tag}
                 onValueChange={(value) => onFiltersChange({ ...filters, tag: value === 'all' ? '' : value })}
               >
-                <SelectTrigger id="tagFilterAdv"><SelectValue placeholder="Tag" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
+                <OptimizedSelectTrigger id="tagFilterAdv">
+                  <OptimizedSelectValue placeholder="Tag" />
+                </OptimizedSelectTrigger>
+                <OptimizedSelectContent>
+                  <OptimizedSelectItem value="all">Todas</OptimizedSelectItem>
                   {availableTags.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
+                    <OptimizedSelectItem key={tag} value={tag}>
                       {tag}
-                    </SelectItem>
+                    </OptimizedSelectItem>
                   ))}
-                </SelectContent>
-              </Select>
+                </OptimizedSelectContent>
+              </OptimizedSelect>
             </div>
             
-            <div>
+            <div className="dropdown-fix">
               <Label htmlFor="dateRangeFilterAdv" className="text-xs text-muted-foreground">Período</Label>
-              <Select
+              <OptimizedSelect
                 value={filters.dateRange}
                 onValueChange={(value) => handleDateRangeChange(value === 'all' ? '' : value)}
               >
-                <SelectTrigger id="dateRangeFilterAdv"><SelectValue placeholder="Período" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Qualquer data</SelectItem>
-                  <SelectItem value="today">Hoje</SelectItem>
-                  <SelectItem value="last7days">Últimos 7 dias</SelectItem>
-                  <SelectItem value="last30days">Últimos 30 dias</SelectItem>
-                  <SelectItem value="thisMonth">Este mês</SelectItem>
-                  <SelectItem value="lastMonth">Mês passado</SelectItem>
-                  <SelectItem value="thisYear">Este ano</SelectItem>
-                  <SelectItem value="custom">Período personalizado</SelectItem>
-                </SelectContent>
-              </Select>
+                <OptimizedSelectTrigger id="dateRangeFilterAdv">
+                  <OptimizedSelectValue placeholder="Período" />
+                </OptimizedSelectTrigger>
+                <OptimizedSelectContent>
+                  <OptimizedSelectItem value="all">Qualquer data</OptimizedSelectItem>
+                  <OptimizedSelectItem value="today">Hoje</OptimizedSelectItem>
+                  <OptimizedSelectItem value="last7days">Últimos 7 dias</OptimizedSelectItem>
+                  <OptimizedSelectItem value="last30days">Últimos 30 dias</OptimizedSelectItem>
+                  <OptimizedSelectItem value="thisMonth">Este mês</OptimizedSelectItem>
+                  <OptimizedSelectItem value="lastMonth">Mês passado</OptimizedSelectItem>
+                  <OptimizedSelectItem value="thisYear">Este ano</OptimizedSelectItem>
+                  <OptimizedSelectItem value="custom">Período personalizado</OptimizedSelectItem>
+                </OptimizedSelectContent>
+              </OptimizedSelect>
             </div>
             
             {filters.dateRange === 'custom' && (

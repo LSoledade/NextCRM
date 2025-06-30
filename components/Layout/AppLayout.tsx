@@ -73,14 +73,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Memoized user initials
   const userInitials = useMemo(() => {
-    if (!user?.displayName) return '';
-    return user.displayName
+    if (!user?.user_metadata?.name && !user?.email) return '';
+    const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || '';
+    return displayName
       .split(' ')
-      .map(name => name.charAt(0))
+      .map((name: string) => name.charAt(0))
       .slice(0, 2)
       .join('')
       .toUpperCase();
-  }, [user?.displayName]);
+  }, [user?.user_metadata?.name, user?.email]);
 
   // Initialize component
   useEffect(() => {
@@ -146,6 +147,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </div>
     </div>
   );
+
   const NavigationItems = ({ collapsed = false }: { collapsed?: boolean }) => (
     <>
       {menuItems.map((item) => {
@@ -197,7 +199,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Sidebar Content
   const SidebarContent = ({ collapsed = false }: { collapsed?: boolean }) => (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-background sidebar-container">
       {/* Logo/Brand */}
       <div className={cn(
         "flex items-center transition-all duration-200 ease-out",
@@ -235,58 +237,66 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // User Menu
   const UserMenu = () => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="rounded-full ring-2 ring-transparent hover:ring-accent/20 transition-all duration-200"
+    <div className="dropdown-fix">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="rounded-full ring-2 ring-transparent hover:ring-accent/20 transition-all duration-200"
+          >
+            <Avatar className="h-9 w-9">
+              <AvatarImage 
+                src={user?.user_metadata?.avatar_url || undefined} 
+                alt={user?.user_metadata?.name || user?.email || 'User'} 
+              />
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                {userInitials || <UserCircle className="h-5 w-5" />}
+              </AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent 
+          align="end" 
+          className="w-56 dropdown-enter" 
+          sideOffset={8}
+          avoidCollisions={true}
+          collisionPadding={8}
         >
-          <Avatar className="h-9 w-9">
-            <AvatarImage 
-              src={user?.photoURL || undefined} 
-              alt={user?.displayName || 'User'} 
-            />
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-              {userInitials || <UserCircle className="h-5 w-5" />}
-            </AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56" sideOffset={8}>
-        <DropdownMenuLabel className="font-semibold">
-          {user?.displayName || 'Minha Conta'}
-        </DropdownMenuLabel>
-        {user?.email && (
-          <p className="px-2 pb-2 text-sm text-muted-foreground">
-            {user.email}
-          </p>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem 
-          onClick={() => router.push('/profile')}
-          className="cursor-pointer"
-        >
-          <UserCircle className="h-4 w-4 mr-3" />
-          Perfil
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem 
-          onClick={handleLogout}
-          className="cursor-pointer text-destructive focus:text-destructive"
-        >
-          <LogOut className="h-4 w-4 mr-3" />
-          Sair
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuLabel className="font-semibold">
+            {user?.user_metadata?.name || user?.email?.split('@')[0] || 'Minha Conta'}
+          </DropdownMenuLabel>
+          {user?.email && (
+            <p className="px-2 pb-2 text-sm text-muted-foreground">
+              {user.email}
+            </p>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem 
+            onClick={() => router.push('/profile')}
+            className="cursor-pointer"
+          >
+            <UserCircle className="h-4 w-4 mr-3" />
+            Perfil
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem 
+            onClick={handleLogout}
+            className="cursor-pointer text-destructive focus:text-destructive"
+          >
+            <LogOut className="h-4 w-4 mr-3" />
+            Sair
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 
   // Mobile Layout
   if (isMobile) {
     return (
       <TooltipProvider>
-        <div className="flex flex-col h-screen bg-background">
+        <div className="flex flex-col h-screen bg-background app-layout-container">
           {/* Mobile Header */}
           <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -309,7 +319,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               CRM Personal Trainer
             </h1>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 dropdown-fix">
               <ThemeToggle />
               <UserMenu />
             </div>
@@ -318,7 +328,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {/* Mobile Main Content */}
           <main className="flex-1 overflow-hidden bg-background">
             <div className="h-full p-4">
-              <div className="h-full main-content-container rounded-2xl shadow-lg overflow-hidden">
+              <div className="h-full main-content-container rounded-2xl shadow-lg overflow-hidden no-transform">
                 <div className="h-full p-6 overflow-auto">
                   {children}
                 </div>
@@ -334,19 +344,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <TooltipProvider>
       <div className={cn(
-        "flex h-screen bg-background overflow-hidden",
+        "flex h-screen bg-background overflow-hidden app-layout-container",
         !isInitialized && "opacity-0"
       )}>
         {/* Desktop Sidebar */}
         <aside className={cn(
-          "flex flex-col transition-all duration-300 ease-out bg-background",
+          "flex flex-col transition-all duration-300 ease-out bg-background no-transform",
           sidebarExpanded ? "w-60" : "w-[72px]"
         )}>
           <SidebarContent collapsed={!sidebarExpanded} />
         </aside>
 
         {/* Desktop Main Area */}
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex flex-col flex-1 min-w-0 no-transform">
           {/* Desktop Header */}
           <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
             <div className="flex items-center gap-2">
@@ -366,7 +376,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </h1>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 dropdown-fix">
               <ThemeToggle />
               <UserMenu />
             </div>
@@ -375,7 +385,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {/* Desktop Main Content */}
           <main className="flex-1 overflow-hidden bg-background">
             <div className="h-full p-6">
-              <div className="h-full main-content-container rounded-3xl shadow-xl overflow-hidden backdrop-blur-sm">
+              <div className="h-full main-content-container rounded-3xl shadow-xl overflow-hidden backdrop-blur-sm no-transform">
                 <div className="h-full p-8 overflow-auto">
                   {children}
                 </div>
