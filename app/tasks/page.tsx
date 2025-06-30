@@ -46,6 +46,7 @@ import {
   useUpdateTaskStatusMutation,
 } from '@/hooks/useTaskMutations';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Para exibir erros
+import KanbanBoard from '@/components/Tasks/KanbanBoard';
 
 type Task = Database['public']['Tables']['tasks']['Row'];
 type Lead = Database['public']['Tables']['leads']['Row'];
@@ -54,11 +55,12 @@ type UpdateTask = Database['public']['Tables']['tasks']['Update'];
 
 
 // Interface NewTask pode ser substituída ou alinhada com InsertTask/UpdateTask
+// Atualizado para refletir os novos status do Kanban
 interface FormTaskState {
   title: string;
   description: string;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  status: 'Todo' | 'InProgress' | 'Done';
+  status: 'Backlog' | 'Em andamento' | 'Bloqueadas' | 'Em Analise' | 'Concluidas';
   due_date: string;
   related_lead_id: string | null; // Permitir null
 }
@@ -69,6 +71,18 @@ const statusColumns = [
   { key: 'Done' as UpdateTask['status'], title: 'Concluído', color: '#4CAF50' },
 ];
 
+// NOVO: status Kanban
+const kanbanColumns = [
+  { key: 'Backlog', title: 'Backlog' },
+  { key: 'Em andamento', title: 'Em andamento' },
+  { key: 'Bloqueadas', title: 'Bloqueadas' },
+  { key: 'Em Analise', title: 'Em Análise' },
+  { key: 'Concluidas', title: 'Concluídas' },
+];
+
+// Novo tipo para status
+const DEFAULT_STATUS: FormTaskState['status'] = 'Backlog';
+
 export default function TasksPage() {
   const { user } = useAuth();
   const userId = user?.id;
@@ -77,9 +91,10 @@ export default function TasksPage() {
   const { tasks, isLoading: tasksLoading, error: tasksError } = useRealtimeTasks();
 
   // Hooks de mutação para tasks
-  const createTaskMutation = useCreateTaskMutation(userId);
-  const updateTaskMutation = useUpdateTaskMutation(userId);
-  const deleteTaskMutation = useDeleteTaskMutation(userId);
+  const userRole = (user?.role === 'admin' || user?.role === 'user') ? user.role : 'user';
+  const createTaskMutation = useCreateTaskMutation(userId, userRole);
+  const updateTaskMutation = useUpdateTaskMutation(userId, userRole);
+  const deleteTaskMutation = useDeleteTaskMutation(userId, userRole);
   const updateTaskStatusMutation = useUpdateTaskStatusMutation(userId);
 
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -92,7 +107,7 @@ export default function TasksPage() {
     title: '',
     description: '',
     priority: 'Medium',
-    status: 'Todo',
+    status: DEFAULT_STATUS,
     due_date: '',
     related_lead_id: null,
   };
@@ -131,40 +146,42 @@ export default function TasksPage() {
     setDialogOpen(true);
   };
 
+  // Ajustar handleOpenDialogForEdit para status novo
   const handleOpenDialogForEdit = (task: Task) => {
     setEditingTask(task);
     setFormTask({
       title: task.title,
       description: task.description || '',
-      priority: task.priority as FormTaskState['priority'], // Cast se necessário
-      status: task.status as FormTaskState['status'], // Cast se necessário
+      priority: task.priority as FormTaskState['priority'],
+      status: task.status as FormTaskState['status'],
       due_date: task.due_date ? task.due_date.split('T')[0] : '',
       related_lead_id: task.related_lead_id || null,
     });
     setDialogOpen(true);
   };
 
+  // Corrigir handleSubmitTaskForm para status e campos obrigatórios
   const handleSubmitTaskForm = async () => {
     if (!userId) return;
-
     const taskPayload = {
       ...formTask,
-      related_lead_id: formTask.related_lead_id || null, // Garante que é null se vazio
-      due_date: formTask.due_date || null, // Supabase aceita null para datas opcionais
+      status: formTask.status as UpdateTask['status'],
+      related_lead_id: formTask.related_lead_id || null,
+      due_date: formTask.due_date || null,
+      assigned_to_id: userId,
+      user_id: userId,
     };
-
     try {
       if (editingTask) {
         await updateTaskMutation.mutateAsync({ ...taskPayload, id: editingTask.id });
       } else {
-        await createTaskMutation.mutateAsync(taskPayload as InsertTask); // Cast para InsertTask
+        await createTaskMutation.mutateAsync(taskPayload as InsertTask);
       }
       setDialogOpen(false);
       setEditingTask(null);
       setFormTask(initialFormState);
     } catch (error) {
       console.error('Erro ao salvar tarefa:', error);
-      // Exibir toast/alert de erro
     }
   };
 
@@ -177,13 +194,9 @@ export default function TasksPage() {
     }
   };
 
-  const handleStatusChange = async (taskId: string, newStatus: UpdateTask['status']) => {
-    try {
-      await updateTaskStatusMutation.mutateAsync({ taskId, status: newStatus });
-    } catch (error) {
-      console.error('Erro ao atualizar status da tarefa:', error);
-      // Exibir toast/alert de erro
-    }
+  // Corrigir handleStatusChange para status novo e garantir void
+  const handleStatusChange = (taskId: string, newStatus: UpdateTask['status']) => {
+    updateTaskStatusMutation.mutate({ taskId, status: newStatus });
   };
 
   const resetForm = () => { // Agora usado para fechar dialog também
@@ -235,89 +248,17 @@ export default function TasksPage() {
       <div className="space-y-6">
         <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
-          {/* Botão Nova Tarefa agora usa handleOpenDialogForCreate */}
+          {/* Botão Nova Tarefa */}
         </div>
-
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {statusColumns.map((column) => (
-            <Card key={column.key} className="flex flex-col">
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl font-semibold">{column.title}</CardTitle>
-                  <Badge style={{ backgroundColor: column.color }} className="text-white">
-                    {getTasksByStatus(column.key).length}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-3 overflow-y-auto">
-                {getTasksByStatus(column.key).map((task) => (
-                  <Card key={task.id} className="cursor-grab active:cursor-grabbing">
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between mb-1">
-                        <h3 className="font-semibold text-md">{task.title}</h3>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleOpenDialogForEdit(task)} // Usa novo handler
-                            className="w-6 h-6"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleDeleteTask(task.id)}
-                            className="text-destructive hover:text-destructive-foreground hover:bg-destructive w-6 h-6"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {task.description && (
-                        <p className="mb-2 text-sm text-muted-foreground line-clamp-2">
-                          {task.description}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between">
-                        <Badge variant={getPriorityBadgeVariant(task.priority)}>
-                          {task.priority}
-                        </Badge>
-                        {task.due_date && (
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(task.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {statusColumns
-                          .filter(col => col.key !== task.status)
-                          .map(col => (
-                            <Button
-                              key={col.key}
-                              size="xs"
-                              variant="outline"
-                              onClick={() => handleStatusChange(task.id, col.key)} // col.key já é do tipo correto
-                              className="text-xs"
-                            >
-                              Mover para {col.title}
-                            </Button>
-                          ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {getTasksByStatus(column.key).length === 0 && (
-                  <p className="text-sm text-center text-muted-foreground">Nenhuma tarefa aqui.</p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
+        <KanbanBoard
+          tasks={tasks}
+          userRole={userRole}
+          onTaskDrop={(
+            taskId: string,
+            newStatus: string
+          ) => handleStatusChange(taskId, newStatus as FormTaskState['status'])}
+        />
+        {/* Dialog de criação/edição permanece igual */}
         <Dialog open={dialogOpen} onOpenChange={(isOpen) => {
           setDialogOpen(isOpen);
           if (!isOpen) {

@@ -15,16 +15,16 @@ const invalidateTasksQuery = (queryClient: ReturnType<typeof useQueryClient>, us
 };
 
 // Hook para criar uma nova Task
-export const useCreateTaskMutation = (userId: string | undefined) => {
+export const useCreateTaskMutation = (userId: string | undefined, role: 'admin' | 'user') => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (taskData: InsertTask) => {
       if (!userId) throw new Error('User ID is required to create a task.');
-
+      if (role !== 'admin') throw new Error('Apenas administradores podem criar tarefas.');
       const { data, error } = await supabase
         .from('tasks')
-        .insert([{ ...taskData, user_id: userId, assigned_to_id: userId }]) // Assumindo assigned_to_id é o user_id
+        .insert([{ ...taskData, user_id: userId, assigned_to_id: userId, status: 'Backlog' }])
         .select()
         .single();
       if (error) throw error;
@@ -33,18 +33,17 @@ export const useCreateTaskMutation = (userId: string | undefined) => {
     onSuccess: () => {
       invalidateTasksQuery(queryClient, userId);
     },
-    // onError: (error, variables, context) => { /* ... */ },
-    // onSettled: () => { /* ... */ },
   });
 };
 
 // Hook para atualizar uma Task existente
-export const useUpdateTaskMutation = (userId: string | undefined) => {
+export const useUpdateTaskMutation = (userId: string | undefined, role: 'admin' | 'user') => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...taskData }: UpdateTask & { id: string }) => {
       if (!userId) throw new Error('User ID is required to update a task.');
+      if (role !== 'admin') throw new Error('Apenas administradores podem editar tarefas.');
       const { data, error } = await supabase
         .from('tasks')
         .update(taskData)
@@ -62,12 +61,13 @@ export const useUpdateTaskMutation = (userId: string | undefined) => {
 };
 
 // Hook para deletar uma Task
-export const useDeleteTaskMutation = (userId: string | undefined) => {
+export const useDeleteTaskMutation = (userId: string | undefined, role: 'admin' | 'user') => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (taskId: string) => {
       if (!userId) throw new Error('User ID is required to delete a task.');
+      if (role !== 'admin') throw new Error('Apenas administradores podem deletar tarefas.');
       const { error } = await supabase
         .from('tasks')
         .delete()
@@ -82,13 +82,14 @@ export const useDeleteTaskMutation = (userId: string | undefined) => {
   });
 };
 
-// Hook para atualizar o status de uma Task (exemplo específico, pode ser combinado com useUpdateTaskMutation)
+// Hook para atualizar o status de uma Task (drag-and-drop)
 export const useUpdateTaskStatusMutation = (userId: string | undefined) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string; status: UpdateTask['status'] }) => {
       if (!userId) throw new Error('User ID is required to update task status.');
+      // Permissão: qualquer usuário pode mover tarefas
       const { data, error } = await supabase
         .from('tasks')
         .update({ status })
