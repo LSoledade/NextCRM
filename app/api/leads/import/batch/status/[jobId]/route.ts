@@ -25,7 +25,7 @@ globalThis.importJobs = importJobs;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     // Verificar autenticação através do cliente Supabase
@@ -49,7 +49,8 @@ export async function GET(
       return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem acessar status de importação.' }, { status: 403 });
     }
 
-    const jobId = params.jobId;
+    const resolvedParams = await params;
+    const jobId = resolvedParams.jobId;
     console.log('Buscando job com ID:', jobId);
     const job = importJobs.get(jobId);
 
