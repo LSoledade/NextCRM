@@ -1,84 +1,103 @@
+// app/api/whatsapp/connection/route.ts - VERSÃO OTIMIZADA
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToWhatsApp, getQRCode, getSocket } from '@/lib/baileys.service';
+import { connectToWhatsApp, getQRCode, getSocket, initializeSupabaseClient } from '@/lib/baileys.service';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@/utils/supabase/server';
 
+// Configurar timeout para operações WhatsApp
+const WHATSAPP_OPERATION_TIMEOUT = 30000; // 30 segundos
+
+// Helper para timeout em operações assíncronas
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Operação timeout')), ms)
+    )
+  ]);
+};
+
 export async function GET(request: NextRequest) {
+  let supabaseServer: any;
+  let user: any;
+
   try {
     // Verificar autenticação
-    const supabaseServer = await createClient();
-    const { data: { user }, error: userError } = await supabaseServer.auth.getUser();
+    supabaseServer = await createClient();
+    const { data: { user: authUser }, error: userError } = await supabaseServer.auth.getUser();
     
-    if (userError || !user) {
+    if (userError || !authUser) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
+    
+    user = authUser;
 
-    // Verifica se já existe uma conexão ativa
+    // Inicializar cliente Supabase no baileys.service
+    initializeSupabaseClient(supabaseServer);
+
+    // Verificar se já existe uma conexão ativa
     let socket = null;
-    try {
-      socket = getSocket();
-    } catch (error) {
-      // Socket não existe, vamos criar
-    }
-
     let status = 'connecting';
     let qrCode = null;
     let whatsappUser = null;
 
-    if (socket && socket.user) {
-      // Já está conectado
-      status = 'connected';
-      whatsappUser = socket.user;
-    } else {
-      // Tentar iniciar conexão
+    try {
+      socket = getSocket();
+      if (socket && socket.user) {
+        status = 'connected';
+        whatsappUser = socket.user;
+      }
+    } catch (error) {
+      // Socket não existe ou não está conectado
+      console.log('Socket WhatsApp não está conectado, iniciando nova conexão...');
+    }
+
+    // Se não estiver conectado, tentar conectar
+    if (status === 'connecting') {
       try {
-        await connectToWhatsApp();
+        // Usar timeout para evitar operações que ficam "presas"
+        await withTimeout(connectToWhatsApp(), WHATSAPP_OPERATION_TIMEOUT);
+        
+        // Verificar se temos QR code ou se já está conectado
         qrCode = getQRCode();
         
-        if (qrCode) {
-          status = 'qr_ready';
+        try {
+          socket = getSocket();
+          if (socket && socket.user) {
+            status = 'connected';
+            whatsappUser = socket.user;
+            qrCode = null; // Limpar QR se já conectado
+          } else if (qrCode) {
+            status = 'qr_ready';
+          }
+        } catch {
+          // Socket ainda não está pronto
+          if (qrCode) {
+            status = 'qr_ready';
+          }
         }
       } catch (error: any) {
         console.error('Erro ao conectar WhatsApp:', error.message);
         
-        // Se o erro for relacionado ao Redis, atualizar status
+        // Tratar diferentes tipos de erro
         if (error.message?.includes('Redis')) {
           status = 'error';
-          await supabase
-            .from('whatsapp_connections')
-            .upsert({
-              user_id: user.id,
-              status: 'error',
-              error_message: 'Erro de conexão com o Redis. Tente novamente em alguns minutos.',
-              qr_code: null,
-              whatsapp_user: null,
-              phone_number: null,
-              connected_at: null,
-              disconnected_at: new Date().toISOString()
-            });
-
+          await updateConnectionStatus(user.id, 'error', null, null, 'Erro de conexão com o Redis');
           return NextResponse.json({ 
             error: 'Serviço temporariamente indisponível. Tente novamente em alguns minutos.' 
           }, { status: 503 });
         }
         
-        throw error; // Re-throw outros erros
+        status = 'error';
+        await updateConnectionStatus(user.id, 'error', null, null, error.message);
+        return NextResponse.json({ 
+          error: 'Erro ao conectar com WhatsApp' 
+        }, { status: 500 });
       }
     }
 
     // Atualizar status no banco de dados
-    await supabase
-      .from('whatsapp_connections')
-      .upsert({
-        user_id: user.id,
-        status: status,
-        qr_code: qrCode,
-        whatsapp_user: whatsappUser,
-        phone_number: whatsappUser?.id || null,
-        connected_at: status === 'connected' ? new Date().toISOString() : null,
-        disconnected_at: null,
-        error_message: null
-      });
+    await updateConnectionStatus(user.id, status as any, qrCode, whatsappUser);
 
     return NextResponse.json({
       status: status,
@@ -86,118 +105,108 @@ export async function GET(request: NextRequest) {
       user: whatsappUser
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro na conexão WhatsApp:', error);
     
     // Tentar atualizar status de erro no banco
-    try {
-      const supabaseServer = await createClient();
-      const { data: { user } } = await supabaseServer.auth.getUser();
-      
-      if (user) {
-        await supabase
-          .from('whatsapp_connections')
-          .upsert({
-            user_id: user.id,
-            status: 'error',
-            error_message: String(error),
-            qr_code: null,
-            whatsapp_user: null,
-            phone_number: null
-          });
+    if (user?.id) {
+      try {
+        await updateConnectionStatus(user.id, 'error', null, null, error.message);
+      } catch (dbError) {
+        console.error('Erro ao atualizar status de erro no banco:', dbError);
       }
-    } catch (dbError) {
-      console.error('Erro ao atualizar status de erro no banco:', dbError);
     }
 
     return NextResponse.json(
-      { error: 'Erro ao conectar com WhatsApp' },
+      { error: 'Erro interno do servidor' },
       { status: 500 }
     );
   }
 }
 
 export async function POST(request: NextRequest) {
+  let supabaseServer: any;
+  let user: any;
+
   try {
     // Verificar autenticação
-    const supabaseServer = await createClient();
-    const { data: { user }, error: userError } = await supabaseServer.auth.getUser();
+    supabaseServer = await createClient();
+    const { data: { user: authUser }, error: userError } = await supabaseServer.auth.getUser();
     
-    if (userError || !user) {
+    if (userError || !authUser) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
+    
+    user = authUser;
+
+    // Inicializar cliente Supabase no baileys.service
+    initializeSupabaseClient(supabaseServer);
 
     const { action } = await request.json();
+
+    if (!action) {
+      return NextResponse.json({ error: 'Ação não especificada' }, { status: 400 });
+    }
 
     if (action === 'disconnect') {
       try {
         const socket = getSocket();
-        await socket.logout();
+        await withTimeout(socket.logout(), WHATSAPP_OPERATION_TIMEOUT);
         
-        // Atualizar status no banco
-        await supabase
-          .from('whatsapp_connections')
-          .update({
-            status: 'disconnected',
-            disconnected_at: new Date().toISOString(),
-            qr_code: null,
-            whatsapp_user: null,
-            phone_number: null
-          })
-          .eq('user_id', user.id);
+        await updateConnectionStatus(user.id, 'disconnected');
 
-        return NextResponse.json({ success: true, message: 'Desconectado com sucesso' });
-      } catch (error) {
-        // Atualizar status no banco mesmo se já estava desconectado
-        await supabase
-          .from('whatsapp_connections')
-          .update({
-            status: 'disconnected',
-            disconnected_at: new Date().toISOString(),
-            qr_code: null,
-            whatsapp_user: null,
-            phone_number: null
-          })
-          .eq('user_id', user.id);
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Desconectado com sucesso' 
+        });
+      } catch (error: any) {
+        // Mesmo se der erro, atualizar status como desconectado
+        await updateConnectionStatus(user.id, 'disconnected');
 
-        return NextResponse.json({ success: true, message: 'Já estava desconectado' });
+        if (error.message === 'Operação timeout') {
+          return NextResponse.json({ 
+            success: true, 
+            message: 'Desconexão solicitada (timeout na confirmação)' 
+          });
+        }
+
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Já estava desconectado' 
+        });
       }
     }
 
     if (action === 'reconnect') {
-      // Atualizar status para connecting
-      await supabase
-        .from('whatsapp_connections')
-        .update({
-          status: 'connecting',
-          qr_code: null,
-          whatsapp_user: null,
-          phone_number: null,
-          connected_at: null,
-          disconnected_at: null,
-          error_message: null
-        })
-        .eq('user_id', user.id);
+      try {
+        // Atualizar status para connecting
+        await updateConnectionStatus(user.id, 'connecting');
 
-      await connectToWhatsApp();
-      const qrCode = getQRCode();
-      
-      // Atualizar com QR code se disponível
-      if (qrCode) {
-        await supabase
-          .from('whatsapp_connections')
-          .update({
-            status: 'qr_ready',
-            qr_code: qrCode
-          })
-          .eq('user_id', user.id);
+        // Tentar conectar com timeout
+        await withTimeout(connectToWhatsApp(), WHATSAPP_OPERATION_TIMEOUT);
+        
+        const qrCode = getQRCode();
+        
+        // Atualizar com QR code se disponível
+        if (qrCode) {
+          await updateConnectionStatus(user.id, 'qr_ready', qrCode);
+        }
+        
+        return NextResponse.json({
+          success: true,
+          status: qrCode ? 'qr_ready' : 'connecting',
+          qrCode: qrCode
+        });
+      } catch (error: any) {
+        console.error('Erro ao reconectar:', error);
+        
+        await updateConnectionStatus(user.id, 'error', null, null, error.message);
+        
+        return NextResponse.json({ 
+          success: false, 
+          error: error.message 
+        }, { status: 500 });
       }
-      
-      return NextResponse.json({
-        success: true,
-        status: qrCode ? 'qr_ready' : 'connecting',
-        qrCode: qrCode
-      });
     }
 
     return NextResponse.json(
@@ -205,11 +214,55 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro na ação WhatsApp:', error);
+    
+    if (user?.id) {
+      try {
+        await updateConnectionStatus(user.id, 'error', null, null, error.message);
+      } catch (dbError) {
+        console.error('Erro ao atualizar status de erro:', dbError);
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Erro ao processar ação' },
+      { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  }
+}
+
+// Helper function para atualizar status no banco
+async function updateConnectionStatus(
+  userId: string,
+  status: 'connecting' | 'qr_ready' | 'connected' | 'disconnected' | 'error',
+  qrCode: string | null = null,
+  whatsappUser: any = null,
+  errorMessage: string | null = null
+) {
+  try {
+    // Usar o cliente servidor com autenticação adequada
+    const supabaseServer = await createClient();
+    
+    const updateData = {
+      user_id: userId,
+      status: status,
+      qr_code: qrCode,
+      whatsapp_user: whatsappUser,
+      phone_number: whatsappUser?.id || null,
+      connected_at: status === 'connected' ? new Date().toISOString() : null,
+      disconnected_at: status === 'disconnected' ? new Date().toISOString() : null,
+      error_message: errorMessage
+    };
+
+    const { error } = await supabaseServer
+      .from('whatsapp_connections')
+      .upsert(updateData);
+
+    if (error) {
+      console.error('Erro ao atualizar status no banco:', error);
+    }
+  } catch (error) {
+    console.error('Erro ao conectar com banco para atualizar status:', error);
   }
 }

@@ -13,13 +13,35 @@ interface ChatListItem {
     lead: Lead;
     last_message: string;
     last_message_timestamp: string;
+    is_from_lead: boolean;
 }
 
 interface WhatsappChatListProps {
     onSelectLead: (leadId: string) => void;
 }
 
-export function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
+// Função para formatar tempo de mensagem de forma amigável
+const formatMessageTime = (timestamp: string) => {
+    const messageDate = new Date(timestamp);
+    const now = new Date();
+    const diffInHours = Math.abs(now.getTime() - messageDate.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 24) {
+        // Se foi hoje, mostrar apenas hora
+        return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (diffInHours < 48) {
+        // Se foi ontem
+        return 'Ontem';
+    } else if (diffInHours < 168) {
+        // Se foi esta semana
+        return messageDate.toLocaleDateString([], { weekday: 'short' });
+    } else {
+        // Se foi há mais tempo, mostrar data
+        return messageDate.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+    }
+};
+
+function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
     const [chatList, setChatList] = useState<ChatListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -31,28 +53,85 @@ export function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
             setLoading(true);
             setError(null);
             try {
-                // First, try to get leads with WhatsApp numbers
-                const { data: leads, error: leadsError } = await supabase
-                    .from('leads')
-                    .select('*')
-                    .not('phone', 'is', null)
-                    .order('updated_at', { ascending: false });
+                // Query otimizada: buscar a última mensagem de cada lead que tem mensagens WhatsApp
+                const { data: chatData, error: chatError } = await supabase
+                    .rpc('get_whatsapp_chat_list');
 
-                if (leadsError) {
-                    console.error('Erro ao buscar leads:', leadsError);
-                    setError('Erro ao carregar conversas');
-                    return;
+                if (chatError) {
+                    console.log('RPC não encontrada, usando query alternativa...');
+                    
+                    // Fallback: buscar todas as mensagens e processar no frontend
+                    const { data: allMessages, error: messagesError } = await supabase
+                        .from('whatsapp_messages')
+                        .select(`
+                            lead_id,
+                            message_content,
+                            message_timestamp,
+                            is_from_lead,
+                            leads!inner (
+                                id,
+                                name,
+                                phone,
+                                email,
+                                status,
+                                user_id,
+                                created_at,
+                                updated_at
+                            )
+                        `)
+                        .order('message_timestamp', { ascending: false });
+
+                    if (messagesError) {
+                        console.error('Erro ao buscar conversas:', messagesError);
+                        setError('Erro ao carregar conversas');
+                        return;
+                    }
+
+                    // Agrupar mensagens por lead_id e pegar a última mensagem de cada
+                    const leadMessagesMap = new Map<string, {
+                        lead: any;
+                        last_message: string;
+                        last_message_timestamp: string;
+                        is_from_lead: boolean;
+                    }>();
+
+                    allMessages?.forEach(msg => {
+                        const leadId = msg.lead_id;
+                        if (!leadMessagesMap.has(leadId)) {
+                            leadMessagesMap.set(leadId, {
+                                lead: msg.leads,
+                                last_message: msg.message_content || 'Mensagem sem conteúdo',
+                                last_message_timestamp: msg.message_timestamp,
+                                is_from_lead: msg.is_from_lead
+                            });
+                        }
+                    });
+
+                    // Converter Map para array e ordenar por timestamp da última mensagem
+                    const chatListData: ChatListItem[] = Array.from(leadMessagesMap.values())
+                        .sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
+
+                    setChatList(chatListData);
+                } else {
+                    // Se a RPC funcionou, processar os dados retornados
+                    const chatListData: ChatListItem[] = chatData?.map((item: any) => ({
+                        lead: {
+                            id: item.lead_id,
+                            name: item.lead_name,
+                            phone: item.lead_phone,
+                            email: item.lead_email,
+                            status: item.lead_status,
+                            user_id: item.lead_user_id,
+                            created_at: item.lead_created_at,
+                            updated_at: item.lead_updated_at
+                        },
+                        last_message: item.last_message || 'Mensagem sem conteúdo',
+                        last_message_timestamp: item.last_message_timestamp,
+                        is_from_lead: item.is_from_lead
+                    })) || [];
+
+                    setChatList(chatListData);
                 }
-
-                // For now, we'll show all leads with phone numbers
-                // In the future, this should be filtered to only leads with WhatsApp messages
-                const chatListData: ChatListItem[] = leads?.map(lead => ({
-                    lead,
-                    last_message: 'Nenhuma mensagem ainda',
-                    last_message_timestamp: lead.updated_at || lead.created_at
-                })) || [];
-
-                setChatList(chatListData);
             } catch (error) {
                 console.error('Erro ao buscar lista de conversas:', error);
                 setError('Erro de conexão');
@@ -105,7 +184,12 @@ export function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                 ) : filteredChats.length === 0 ? (
                     <div className="p-4">
                         <div className="text-center text-muted-foreground">
-                            <p>Nenhuma conversa encontrada</p>
+                            <p>{searchTerm ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa do WhatsApp ainda'}</p>
+                            {!searchTerm && (
+                                <p className="text-sm mt-1">
+                                    As conversas aparecerão aqui quando você receber mensagens
+                                </p>
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -124,10 +208,17 @@ export function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                             </Avatar>
                             <div className="flex-1 overflow-hidden">
                                 <p className="font-semibold truncate">{chat.lead.name}</p>
-                                <p className="text-sm text-muted-foreground truncate">{chat.last_message}</p>
+                                <div className="flex items-center gap-1">
+                                    {!chat.is_from_lead && (
+                                        <span className="text-xs text-blue-600">Você:</span>
+                                    )}
+                                    <p className="text-sm text-muted-foreground truncate">
+                                        {chat.last_message}
+                                    </p>
+                                </div>
                             </div>
                             <p className="text-xs text-muted-foreground ml-2">
-                                {new Date(chat.last_message_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {formatMessageTime(chat.last_message_timestamp)}
                             </p>
                         </div>
                     ))
@@ -136,3 +227,5 @@ export function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
         </div>
     );
 }
+
+export default WhatsappChatList;

@@ -13,7 +13,7 @@ interface WhatsappChatViewProps {
   leadId: string | null;
 }
 
-export function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
+function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,3 +100,5 @@ export function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
     </Card>
   );
 }
+
+export default WhatsappChatView;
