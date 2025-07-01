@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 
-// Importar a mesma interface e Map do arquivo anterior
 interface ImportJob {
   id: string;
   userId: string;
@@ -17,7 +16,6 @@ interface ImportJob {
   updatedAt: Date;
 }
 
-// Em produção, isso seria uma conexão com Redis ou banco de dados
 declare global {
   var importJobs: Map<string, ImportJob> | undefined;
 }
@@ -27,7 +25,6 @@ globalThis.importJobs = importJobs;
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticação através do cliente Supabase
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
@@ -48,12 +45,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem importar leads.' }, { status: 403 });
     }
 
-    // Usar cliente regular autenticado em vez de admin client
-    // O RLS está configurado corretamente para permitir que usuários insiram seus próprios leads
     const supabaseForInsert = await createClient();
 
     const { jobId, chunkIndex, data } = await request.json();
-    console.log(`Processando chunk ${chunkIndex} para job ${jobId}`, { dataLength: data?.length });
 
     // Validações
     if (!jobId || chunkIndex === undefined || !data || !Array.isArray(data)) {
@@ -64,12 +58,11 @@ export async function POST(request: NextRequest) {
     const job = importJobs.get(jobId);
     if (!job) {
       console.error('Job não encontrado:', jobId);
-      console.log('Jobs disponíveis:', Array.from(importJobs.keys()));
       return NextResponse.json({ error: 'Job não encontrado' }, { status: 404 });
     }
 
     if (job.userId !== user.id) {
-      console.error('Usuário não autorizado para o job:', { jobUserId: job.userId, currentUserId: user.id });
+      console.error('Usuário não autorizado para o job');
       return NextResponse.json({ error: 'Não autorizado para este job' }, { status: 403 });
     }
 
@@ -81,22 +74,16 @@ export async function POST(request: NextRequest) {
     const chunkErrors: Array<{ line: number; error: string }> = [];
     const validLeads: any[] = [];
 
-    console.log(`Processando chunk ${chunkIndex} com ${data.length} linhas`);
-
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const lineNumber = (chunkIndex * 1000) + i + 1; // Assumindo chunks de 1000
-
-      console.log(`Processando linha ${lineNumber}:`, row);
+      const lineNumber = (chunkIndex * 1000) + i + 1;
 
       try {
         // Validação básica
         if (!row.name || !row.email) {
-          const error = 'Nome e email são obrigatórios';
-          console.log(`Linha ${lineNumber} inválida:`, error);
           chunkErrors.push({
             line: lineNumber,
-            error
+            error: 'Nome e email são obrigatórios'
           });
           continue;
         }
@@ -104,11 +91,9 @@ export async function POST(request: NextRequest) {
         // Validar email
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(row.email)) {
-          const error = 'Email inválido';
-          console.log(`Linha ${lineNumber} com email inválido:`, row.email);
           chunkErrors.push({
             line: lineNumber,
-            error
+            error: 'Email inválido'
           });
           continue;
         }
@@ -149,16 +134,12 @@ export async function POST(request: NextRequest) {
         let status = 'New'; // Valor padrão
         if (row.status) {
           const statusValue = row.status.trim();
-          // Verificar se o status é válido conforme a tabela
           if (['New', 'Contacted', 'Converted', 'Lost'].includes(statusValue)) {
             status = statusValue;
-          } else {
-            // Se o status não for válido, usar o padrão mas não dar erro
-            console.log(`Status inválido "${statusValue}" na linha ${lineNumber}, usando "New"`);
           }
         }
 
-        // Preparar dados do lead - apenas campos que existem na tabela
+        // Preparar dados do lead
         const leadData = {
           user_id: user.id,
           name: row.name?.trim(),
@@ -168,29 +149,22 @@ export async function POST(request: NextRequest) {
           status: status,
           source: source,
           tags: row.tags ? row.tags.split(';').map((tag: string) => tag.trim()).filter(Boolean) : [],
-          is_student: isStudent // Temporário para processamento
+          is_student: isStudent
         };
 
-        console.log(`Lead válido criado na linha ${lineNumber}:`, leadData);
         validLeads.push(leadData);
 
       } catch (error) {
-        const errorMsg = `Erro ao processar linha: ${error}`;
-        console.log(`Erro na linha ${lineNumber}:`, errorMsg);
         chunkErrors.push({
           line: lineNumber,
-          error: errorMsg
+          error: `Erro ao processar linha: ${error}`
         });
       }
     }
 
-    console.log(`Chunk ${chunkIndex} processado: ${validLeads.length} leads válidos, ${chunkErrors.length} erros`);
-
-    // Inserir leads válidos no banco em batch
+    // Inserir leads válidos no banco
     let insertedCount = 0;
     const studentsToCreate: any[] = [];
-    
-    console.log(`Processando ${validLeads.length} leads válidos para inserção`);
     
     if (validLeads.length > 0) {
       try {
@@ -203,16 +177,11 @@ export async function POST(request: NextRequest) {
           return leadData;
         });
 
-        console.log('Dados preparados para inserção:', leadsToInsert[0]); // Log do primeiro lead
-        console.log('Total de leads para inserir:', leadsToInsert.length);
-
-        // Usar insert simples já que não temos constraint única
+        // Inserir leads no banco
         const { data: insertResult, error: insertError } = await supabaseForInsert
           .from('leads')
           .insert(leadsToInsert)
           .select('id, email');
-
-        console.log('Resultado da inserção:', { insertResult, insertError });
 
         if (insertError) {
           console.error('Erro ao inserir leads:', insertError);
@@ -285,18 +254,10 @@ export async function POST(request: NextRequest) {
 
     // Verificar se todos os chunks foram processados
     if (job.processedChunks >= job.totalChunks) {
-      job.status = job.errorCount === 0 ? 'completed' : 'completed'; // Completed mesmo com erros
+      job.status = 'completed';
     }
 
     importJobs.set(jobId, job);
-    
-    console.log(`Chunk ${chunkIndex} processado:`, {
-      insertedCount,
-      errorCount: chunkErrors.length,
-      jobProcessedChunks: job.processedChunks,
-      jobTotalChunks: job.totalChunks,
-      jobStatus: job.status
-    });
 
     return NextResponse.json({
       success: true,
