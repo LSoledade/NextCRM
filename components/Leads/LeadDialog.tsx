@@ -21,8 +21,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge'; // For tags
+import { Checkbox } from '@/components/ui/checkbox'; // For student checkbox
 import { X } from 'lucide-react'; // For close icon and tag remove
 import { Database } from '@/types/database';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
@@ -32,21 +35,24 @@ interface LeadDialogProps {
   open: boolean;
   lead: Lead | null;
   onOpenChange: (open: boolean) => void; // Standard for shadcn dialogs
-  onSave: (lead: InsertLead) => Promise<void>;
+  onSave: (lead: InsertLead, isStudent?: boolean) => Promise<void>;
   // onClose can be removed if onOpenChange(false) is used, or kept if specific logic is needed
   onClose?: () => void;
 }
 
 export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: parentOnClose }: LeadDialogProps) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState<InsertLead>({
     name: '',
     email: '',
     phone: '',
     status: 'New',
     source: '',
+    company: null,
     user_id: '', // This should ideally be set from auth context or passed if needed
     tags: [],
   });
+  const [isStudent, setIsStudent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tagInput, setTagInput] = useState('');
 
@@ -64,9 +70,11 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
           phone: lead.phone || '',
           status: lead.status as any || 'New',
           source: lead.source || '',
+          company: (lead as any).company || null,
           tags: lead.tags || [],
           user_id: lead.user_id, // Ensure this is correct
         });
+        setIsStudent((lead as any).is_student || false);
       } else {
         setFormData({
           name: '',
@@ -74,9 +82,11 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
           phone: '',
           status: 'New',
           source: '',
+          company: null,
           tags: [],
           user_id: '', // Reset or get from context if creating new
         });
+        setIsStudent(false);
       }
       setTagInput('');
     }
@@ -89,13 +99,19 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
         alert("Nome e Email são obrigatórios.");
         return;
     }
+    if (!user) {
+        alert("Usuário não autenticado.");
+        return;
+    }
+    
     setLoading(true);
     try {
-      await onSave(formData);
+      // Passar o estado de aluno para o componente pai
+      await onSave({...formData, user_id: user.id}, isStudent);
       handleActualClose();
     } catch (error) {
       console.error('Erro ao salvar lead:', error);
-      // You might want to show an error message to the user here
+      alert('Erro ao salvar. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -189,6 +205,22 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                <div className="space-y-2">
+                <Label htmlFor="company">Empresa</Label>
+                <Select
+                  value={formData.company || undefined}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, company: value === 'none' ? null : value as any }))}
+                  disabled={loading}
+                >
+                  <SelectTrigger id="company"><SelectValue placeholder="Selecione uma empresa" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma</SelectItem>
+                    <SelectItem value="Favale">Favale</SelectItem>
+                    <SelectItem value="Pink">Pink</SelectItem>
+                    <SelectItem value="Favale&Pink">Favale & Pink</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+               <div className="space-y-2">
                 <Label htmlFor="source">Origem</Label>
                 <Select
                   value={formData.source || undefined}
@@ -197,16 +229,30 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
                 >
                   <SelectTrigger id="source"><SelectValue placeholder="Selecione uma origem" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Favale">Favale</SelectItem>
-                    <SelectItem value="Pink">Pink</SelectItem>
                     <SelectItem value="Instagram">Instagram</SelectItem>
                     <SelectItem value="Facebook">Facebook</SelectItem>
                     <SelectItem value="Site">Site</SelectItem>
                     <SelectItem value="Indicação">Indicação</SelectItem>
+                    <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                    <SelectItem value="Google Ads">Google Ads</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+            
+            {/* Checkbox para marcar como aluno */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isStudent"
+                checked={isStudent}
+                onCheckedChange={(checked) => setIsStudent(checked as boolean)}
+                disabled={loading}
+              />
+              <Label htmlFor="isStudent" className="text-sm font-medium">
+                Marcar como aluno
+              </Label>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="tags">Tags</Label>
               <div className="flex items-center gap-2">

@@ -6,7 +6,7 @@
   /* Definição das variáveis de cor para o tema */
   :root {
     /* --- Tema Claro --- */
-    --background: 0 0% 100%;                  /* Fundo geral (Header, Sidebar) */
+    --background: 220 14% 96%;                /* Fundo geral (Header, Sidebar) */
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;                        /* Fundo de cards menores */
     --card-foreground: 0 0% 3.9%;

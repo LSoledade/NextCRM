@@ -7,6 +7,12 @@ const config: Config = {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    // Garantir que as cores das empresas sejam incluídas no build
+    'border-[#ff9810]', 'text-[#ff9810]', 'bg-[#ff9810]/10', 'bg-[#ff9810]/20',
+    'border-[#ed0180]', 'text-[#ed0180]', 'bg-[#ed0180]/10', 'bg-[#ed0180]/20',
+    'border-[#E71161]', 'text-[#E71161]', 'bg-[#E71161]/10', 'bg-[#E71161]/20',
+  ],
   theme: {
     extend: {
       backgroundImage: {
@@ -59,6 +65,12 @@ const config: Config = {
           '3': 'hsl(var(--chart-3))',
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
+        },
+        // Cores das empresas
+        company: {
+          'favale': '#ff9810',
+          'pink': '#ed0180', 
+          'favalepink': '#E71161',
         },
       },
       keyframes: {

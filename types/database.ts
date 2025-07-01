@@ -30,9 +30,11 @@ export interface Database {
           status: 'New' | 'Contacted' | 'Converted' | 'Lost';
           tags: string[] | null;
           source: string | null;
+          company: 'Favale' | 'Pink' | 'Favale&Pink' | null;
           created_at: string;
           updated_at: string;
           user_id: string;
+          is_student?: boolean; // Campo virtual para indicar se é aluno
         };
         Insert: {
           id?: string;
@@ -42,6 +44,7 @@ export interface Database {
           status?: 'New' | 'Contacted' | 'Converted' | 'Lost';
           tags?: string[] | null;
           source?: string | null;
+          company?: 'Favale' | 'Pink' | 'Favale&Pink' | null;
           created_at?: string;
           updated_at?: string;
           user_id: string;

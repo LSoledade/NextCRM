@@ -75,12 +75,12 @@ export default function BatchOperations({
               <OptimizedSelectValue placeholder="Alterar Origem para..." />
             </OptimizedSelectTrigger>
             <OptimizedSelectContent>
-              <OptimizedSelectItem value="Favale">Favale</OptimizedSelectItem>
-              <OptimizedSelectItem value="Pink">Pink</OptimizedSelectItem>
               <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
               <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
               <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
               <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
+              <OptimizedSelectItem value="WhatsApp">WhatsApp</OptimizedSelectItem>
+              <OptimizedSelectItem value="Google Ads">Google Ads</OptimizedSelectItem>
             </OptimizedSelectContent>
           </OptimizedSelect>
         </div>

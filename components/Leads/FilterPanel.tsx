@@ -24,7 +24,7 @@ interface FilterState {
   source: string;
   status: string;
   campaign: string;
-  state: string;
+  company: string;
   startDate: string;
   endDate: string;
   tag: string;
@@ -96,7 +96,7 @@ export default function FilterPanel({
       source: '',
       status: '',
       campaign: '',
-      state: '',
+      company: '',
       startDate: '',
       endDate: '',
       tag: '',
@@ -122,6 +122,24 @@ export default function FilterPanel({
         </div>
 
         <div className="md:col-span-2 dropdown-fix">
+          <Label htmlFor="companyFilter" className="sr-only">Empresa</Label>
+          <OptimizedSelect
+            value={filters.company}
+            onValueChange={(value) => onFiltersChange({ ...filters, company: value === 'all' ? '' : value })}
+          >
+            <OptimizedSelectTrigger id="companyFilter">
+              <OptimizedSelectValue placeholder="Empresa" />
+            </OptimizedSelectTrigger>
+            <OptimizedSelectContent>
+              <OptimizedSelectItem value="all">Todas as Empresas</OptimizedSelectItem>
+              <OptimizedSelectItem value="Favale">Favale</OptimizedSelectItem>
+              <OptimizedSelectItem value="Pink">Pink</OptimizedSelectItem>
+              <OptimizedSelectItem value="Favale&Pink">Favale & Pink</OptimizedSelectItem>
+            </OptimizedSelectContent>
+          </OptimizedSelect>
+        </div>
+
+        <div className="md:col-span-2 dropdown-fix">
           <Label htmlFor="sourceFilter" className="sr-only">Origem</Label>
           <OptimizedSelect
             value={filters.source}
@@ -132,12 +150,12 @@ export default function FilterPanel({
             </OptimizedSelectTrigger>
             <OptimizedSelectContent>
               <OptimizedSelectItem value="all">Todas as Origens</OptimizedSelectItem>
-              <OptimizedSelectItem value="Favale">Favale</OptimizedSelectItem>
-              <OptimizedSelectItem value="Pink">Pink</OptimizedSelectItem>
               <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
               <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
               <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
               <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
+              <OptimizedSelectItem value="WhatsApp">WhatsApp</OptimizedSelectItem>
+              <OptimizedSelectItem value="Google Ads">Google Ads</OptimizedSelectItem>
             </OptimizedSelectContent>
           </OptimizedSelect>
         </div>
@@ -216,24 +234,6 @@ export default function FilterPanel({
           </div>
           
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <div className="dropdown-fix">
-              <Label htmlFor="stateFilterAdv" className="text-xs text-muted-foreground">Estado</Label>
-              <OptimizedSelect
-                value={filters.state}
-                onValueChange={(value) => onFiltersChange({ ...filters, state: value === 'all' ? '' : value })}
-              >
-                <OptimizedSelectTrigger id="stateFilterAdv">
-                  <OptimizedSelectValue placeholder="Estado" />
-                </OptimizedSelectTrigger>
-                <OptimizedSelectContent>
-                  <OptimizedSelectItem value="all">Todos</OptimizedSelectItem>
-                  <OptimizedSelectItem value="SP">São Paulo</OptimizedSelectItem>
-                  <OptimizedSelectItem value="RJ">Rio de Janeiro</OptimizedSelectItem>
-                  <OptimizedSelectItem value="MG">Minas Gerais</OptimizedSelectItem>
-                </OptimizedSelectContent>
-              </OptimizedSelect>
-            </div>
-            
             <div className="dropdown-fix">
               <Label htmlFor="tagFilterAdv" className="text-xs text-muted-foreground">Tag</Label>
               <OptimizedSelect

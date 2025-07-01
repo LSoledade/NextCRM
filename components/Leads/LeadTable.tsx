@@ -23,9 +23,12 @@ import {
 import { Card, CardContent } from "@/components/ui/card"; // For Paper replacement
 import { MoreHorizontal, Edit3, Trash2, Eye, PhoneCall, Mail } from 'lucide-react'; // Replaced icons
 import { Database } from '@/types/database';
+import { getCompanyBadgeStyles, getStudentBadgeStyles, type Company } from '@/lib/company-utils';
 import { cn } from '@/lib/utils';
 
-type Lead = Database['public']['Tables']['leads']['Row'];
+type Lead = Database['public']['Tables']['leads']['Row'] & {
+  is_student?: boolean;
+};
 
 // Assuming you might want a custom pagination component or integrate with shadcn's table capabilities
 // For simplicity, basic pagination logic is kept, but UI will need shadcn components.
@@ -146,6 +149,7 @@ export default function LeadTable({
     { key: 'name', label: 'Nome' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Telefone' },
+    { key: 'company', label: 'Empresa' },
     { key: 'status', label: 'Status' },
     { key: 'source', label: 'Origem' },
     { key: 'tags', label: 'Tags' },
@@ -154,7 +158,14 @@ export default function LeadTable({
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('leads_visible_columns');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsedColumns = JSON.parse(saved);
+        // Garantir que a coluna company esteja sempre visível se não estiver
+        if (!parsedColumns.includes('company')) {
+          parsedColumns.push('company');
+        }
+        return parsedColumns;
+      }
     }
     return defaultColumns.map(c => c.key);
   });
@@ -233,6 +244,17 @@ export default function LeadTable({
                     Telefone {sortBy === 'phone' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </TableHead>
                 )}
+                {visibleColumns.includes('company') && (
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      setSortBy('company');
+                      setSortOrder(sortBy === 'company' && sortOrder === 'asc' ? 'desc' : 'asc');
+                    }}
+                  >
+                    Empresa {sortBy === 'company' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </TableHead>
+                )}
                 {visibleColumns.includes('status') && (
                   <TableHead
                     className="cursor-pointer select-none"
@@ -293,7 +315,19 @@ export default function LeadTable({
                     />
                   </TableCell>
                   {visibleColumns.includes('name') && (
-                    <TableCell className="font-medium">{lead.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <span>{lead.name}</span>
+                        {lead.is_student && (
+                          <Badge 
+                            variant="outline" 
+                            className={cn("text-xs px-2 py-0.5", getStudentBadgeStyles((lead as any).company as Company))}
+                          >
+                            Aluno
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                   )}
                   {visibleColumns.includes('email') && (
                     <TableCell>
@@ -312,6 +346,20 @@ export default function LeadTable({
                         </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">Não informado</span>
+                      )}
+                    </TableCell>
+                  )}
+                  {visibleColumns.includes('company') && (
+                    <TableCell>
+                      {(lead as any).company ? (
+                        <Badge 
+                          variant="outline" 
+                          className={cn("text-xs px-2 py-0.5", getCompanyBadgeStyles((lead as any).company as Company))}
+                        >
+                          {(lead as any).company}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
                       )}
                     </TableCell>
                   )}
