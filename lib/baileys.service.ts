@@ -55,6 +55,12 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
       const data = await redisService.get(`${BIND_KEY}:${key}`);
       if (data) {
         console.log(`[Baileys] Redis read success: ${key}`);
+        // Check if data is already an object (corrupted data case)
+        if (typeof data === 'object') {
+          console.warn(`[Baileys] Found corrupted data for key ${key}, clearing...`);
+          await redisService.del(`${BIND_KEY}:${key}`);
+          return null;
+        }
         return JSON.parse(data, BufferJSON.reviver);
       } else {
         console.log(`[Baileys] Redis key not found: ${key} (normal for first run)`);
@@ -62,6 +68,13 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
       }
     } catch (error) {
       console.error(`[Baileys] Error reading Redis data for key ${key}:`, error);
+      // Clear corrupted data
+      try {
+        await redisService.del(`${BIND_KEY}:${key}`);
+        console.log(`[Baileys] Cleared corrupted Redis data for key ${key}`);
+      } catch (delError) {
+        console.error(`[Baileys] Error clearing corrupted data:`, delError);
+      }
       return null;
     }
   };
@@ -472,8 +485,8 @@ async function updateConnectionStatus(
 
     // Buscar o primeiro usuário admin/ativo para associar a conexão WhatsApp
     const { data: users, error: userError } = await supabaseClient
-      .from('profiles')
-      .select('user_id')
+      .from('users')
+      .select('id')
       .eq('role', 'admin')
       .limit(1);
 
@@ -482,21 +495,17 @@ async function updateConnectionStatus(
       return;
     }
 
-    const userId = users[0].user_id;
+    const userId = users[0].id;
 
-    // Tentar upsert na tabela de conexões WhatsApp
-    const { error } = await supabaseClient
-      .from('whatsapp_connections')
-      .upsert({
-        user_id: userId,
-        status: status,
-        qr_code: qrCode,
-        whatsapp_user: whatsappUser,
-        phone_number: whatsappUser?.id || null,
-        error_message: errorMessage,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
+    // Use the upsert function instead of direct table upsert
+    const { data: connectionId, error } = await supabaseClient
+      .rpc('upsert_whatsapp_connection_v2', {
+        p_user_id: userId,
+        p_status: status,
+        p_qr_code: qrCode,
+        p_whatsapp_user: whatsappUser,
+        p_phone_number: whatsappUser?.id || null,
+        p_error_message: errorMessage
       });
 
     if (error) {

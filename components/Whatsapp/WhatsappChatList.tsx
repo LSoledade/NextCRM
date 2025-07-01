@@ -64,7 +64,7 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
 
                 // Query otimizada: buscar a última mensagem de cada lead que tem mensagens WhatsApp
                 const { data: chatData, error: chatError } = await supabase
-                    .rpc('get_whatsapp_chat_list', { p_user_id: user.id });
+                    .rpc('get_whatsapp_chat_list_v2', { p_user_id: user.id });
 
                 if (chatError) {
                     console.log('RPC não encontrada, usando query alternativa...', chatError);

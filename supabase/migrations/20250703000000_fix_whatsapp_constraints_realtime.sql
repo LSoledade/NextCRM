@@ -65,10 +65,10 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_connections_user_status
 ON whatsapp_connections (user_id, status);
 
 -- 6. Create function to safely upsert WhatsApp connection
--- First drop any existing function with this name
-DROP FUNCTION IF EXISTS upsert_whatsapp_connection CASCADE;
+-- Use a new function name to avoid conflicts
+DROP FUNCTION IF EXISTS upsert_whatsapp_connection_v2 CASCADE;
 
-CREATE OR REPLACE FUNCTION upsert_whatsapp_connection(
+CREATE OR REPLACE FUNCTION upsert_whatsapp_connection_v2(
     p_user_id UUID,
     p_status TEXT DEFAULT 'connecting',
     p_qr_code TEXT DEFAULT NULL,
@@ -123,10 +123,10 @@ END;
 $$;
 
 -- 7. Create function to cleanup old WhatsApp connections
--- First drop any existing function with this name
-DROP FUNCTION IF EXISTS cleanup_old_whatsapp_connections CASCADE;
+-- Use a new function name to avoid conflicts
+DROP FUNCTION IF EXISTS cleanup_old_whatsapp_connections_v2 CASCADE;
 
-CREATE OR REPLACE FUNCTION cleanup_old_whatsapp_connections(
+CREATE OR REPLACE FUNCTION cleanup_old_whatsapp_connections_v2(
     p_user_id UUID DEFAULT NULL,
     p_keep_days INTEGER DEFAULT 30
 ) RETURNS INTEGER
@@ -147,10 +147,10 @@ END;
 $$;
 
 -- 8. Update the chat list function to be more efficient
--- First drop any existing function with this name
-DROP FUNCTION IF EXISTS get_whatsapp_chat_list CASCADE;
+-- Use a new function name to avoid conflicts
+DROP FUNCTION IF EXISTS get_whatsapp_chat_list_v2 CASCADE;
 
-CREATE OR REPLACE FUNCTION get_whatsapp_chat_list(p_user_id UUID)
+CREATE OR REPLACE FUNCTION get_whatsapp_chat_list_v2(p_user_id UUID)
 RETURNS TABLE (
     lead_id UUID,
     lead_name TEXT,
@@ -211,6 +211,6 @@ END;
 $$;
 
 -- 9. Grant necessary permissions
-GRANT EXECUTE ON FUNCTION upsert_whatsapp_connection TO authenticated;
-GRANT EXECUTE ON FUNCTION cleanup_old_whatsapp_connections TO authenticated;
-GRANT EXECUTE ON FUNCTION get_whatsapp_chat_list TO authenticated;
+GRANT EXECUTE ON FUNCTION upsert_whatsapp_connection_v2 TO authenticated;
+GRANT EXECUTE ON FUNCTION cleanup_old_whatsapp_connections_v2 TO authenticated;
+GRANT EXECUTE ON FUNCTION get_whatsapp_chat_list_v2 TO authenticated;

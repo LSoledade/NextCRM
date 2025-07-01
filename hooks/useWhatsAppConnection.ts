@@ -59,7 +59,7 @@ export function useWhatsAppConnection() {
         // Criar registro inicial se não existir usando função upsert segura
         if (user?.id) {
           try {
-            const { data, error } = await supabase.rpc('upsert_whatsapp_connection', {
+            const { data, error } = await supabase.rpc('upsert_whatsapp_connection_v2', {
               p_user_id: user.id,
               p_status: 'connecting'
             });
