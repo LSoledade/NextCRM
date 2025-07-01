@@ -15,7 +15,7 @@ import makeWASocket, {
   SignalDataTypeMap
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
-import Redis from 'ioredis';
+import { getRedisService, isRedisAvailable, RedisService } from './redis.service';
 
 // Cliente Supabase global - será inicializado pela API
 let supabaseClient: any = null;
@@ -24,88 +24,6 @@ let supabaseClient: any = null;
 export function initializeSupabaseClient(client: any) {
   supabaseClient = client;
 }
-
-// --- CONFIGURAÇÃO DO REDIS COM RETRY E FALLBACK ---
-let redis: Redis | null = null;
-let redisInitialized = false;
-
-const initializeRedis = async (): Promise<Redis | null> => {
-  if (redisInitialized) return redis;
-  
-  if (!process.env.REDIS_URL) {
-    console.error('[Baileys] REDIS_URL não configurado nas variáveis de ambiente');
-    redisInitialized = true;
-    return null;
-  }
-
-  try {
-    const redisInstance = new Redis(process.env.REDIS_URL!, {
-      maxRetriesPerRequest: Number(process.env.REDIS_MAX_RETRIES) || 3,
-      lazyConnect: true,
-      connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT) || 10000,
-      commandTimeout: Number(process.env.REDIS_COMMAND_TIMEOUT) || 5000,
-      family: 4, // Use IPv4
-      enableReadyCheck: false,
-      keepAlive: 30000, // Keep connection alive
-      db: 0,
-    });
-
-    // Configurar listeners de eventos
-    redisInstance.on('error', (error: Error) => {
-      console.error('[Baileys] Redis connection error:', error.message);
-      // Não tentar reconectar imediatamente em caso de ECONNRESET
-      if (error.message.includes('ECONNRESET')) {
-        console.log('[Baileys] Redis ECONNRESET detectado - aguardando antes de reconectar...');
-      }
-    });
-
-    redisInstance.on('connect', () => {
-      console.log('[Baileys] Redis connected successfully');
-    });
-
-    redisInstance.on('ready', () => {
-      console.log('[Baileys] Redis ready for commands');
-    });
-
-    redisInstance.on('close', () => {
-      console.log('[Baileys] Redis connection closed');
-    });
-
-    redisInstance.on('reconnecting', (delay: number) => {
-      console.log(`[Baileys] Redis reconnecting in ${delay}ms...`);
-    });
-
-    // Testar conexão
-    await redisInstance.ping();
-    redis = redisInstance;
-    redisInitialized = true;
-    
-    console.log('[Baileys] Redis inicializado com sucesso');
-    return redis;
-  } catch (error) {
-    console.error('[Baileys] Falha ao inicializar Redis:', error);
-    redisInitialized = true;
-    return null;
-  }
-};
-
-// Função para verificar se o Redis está disponível
-const isRedisAvailable = async (): Promise<boolean> => {
-  if (!redis) {
-    redis = await initializeRedis();
-  }
-  
-  if (!redis) return false;
-  
-  try {
-    await redis.ping();
-    console.log('[Baileys] Redis health check: OK');
-    return true;
-  } catch (error) {
-    console.error('[Baileys] Redis health check failed:', error);
-    return false;
-  }
-};
 
 // --- REDIS AUTH STORE ---
 const BufferJSON = {
@@ -124,7 +42,9 @@ const BufferJSON = {
 };
 
 const createRedisAuthState = async (): Promise<{ state: AuthenticationState, saveCreds: () => Promise<void> }> => {
-  if (!redis) {
+  const redisService = await getRedisService();
+  
+  if (!redisService) {
     throw new Error('[Baileys] Redis não está disponível para auth state');
   }
 
@@ -132,9 +52,7 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
 
   const readData = async (key: string): Promise<any> => {
     try {
-      if (!redis) throw new Error('Redis não disponível');
-      
-      const data = await redis.get(`${BIND_KEY}:${key}`);
+      const data = await redisService.get(`${BIND_KEY}:${key}`);
       if (data) {
         console.log(`[Baileys] Redis read success: ${key}`);
         return JSON.parse(data, BufferJSON.reviver);
@@ -150,11 +68,9 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
 
   const writeData = async (data: any, key: string): Promise<any> => {
     try {
-      if (!redis) throw new Error('Redis não disponível');
-      
-      const result = await redis.set(`${BIND_KEY}:${key}`, JSON.stringify(data, BufferJSON.replacer));
+      await redisService.set(`${BIND_KEY}:${key}`, JSON.stringify(data, BufferJSON.replacer));
       console.log(`[Baileys] Redis write success: ${key}`);
-      return result;
+      return true;
     } catch (error) {
       console.error(`[Baileys] Error writing Redis data for key ${key}:`, error);
       throw error;
@@ -163,9 +79,8 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
 
   const removeData = async (key: string): Promise<number> => {
     try {
-      if (!redis) throw new Error('Redis não disponível');
-      
-      return await redis.del(`${BIND_KEY}:${key}`);
+      await redisService.del(`${BIND_KEY}:${key}`);
+      return 1;
     } catch (error) {
       console.error(`[Baileys] Error removing Redis data for key ${key}:`, error);
       return 0;
@@ -173,6 +88,10 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
   };
 
   const creds: AuthenticationCreds = (await readData('creds')) || initAuthCreds();
+  
+  // Verificar se é primeira conexão (sem credenciais válidas)
+  const isFirstRun = !creds.registered;
+  console.log(`[Baileys] ${isFirstRun ? 'Primeira execução - QR Code será gerado' : 'Credenciais encontradas'}`);
 
   return {
     state: {
@@ -333,13 +252,14 @@ export async function connectToWhatsApp(): Promise<WASocket> {
         creds: state.creds, 
         keys: makeCacheableSignalKeyStore(state.keys, logger) 
       },
-      printQRInTerminal: process.env.NODE_ENV === 'development',
       logger,
       browser: ['FavaleTrainer CRM', 'Chrome', '1.0.0'],
       generateHighQualityLinkPreview: true,
       syncFullHistory: false,
       markOnlineOnConnect: true,
-      defaultQueryTimeoutMs: 30000,
+      defaultQueryTimeoutMs: 60000, // Aumentar timeout
+      connectTimeoutMs: 60000, // Timeout de conexão
+      qrTimeout: 40000, // Timeout para QR code
     });
 
     // --- EVENT HANDLERS ---
@@ -347,7 +267,19 @@ export async function connectToWhatsApp(): Promise<WASocket> {
       const { connection, lastDisconnect, qr } = update;
       qrCode = qr ?? null;
 
-      console.log('[Baileys] Connection update:', { connection, qr: !!qr });
+      console.log('[Baileys] Connection update:', { 
+        connection, 
+        qr: !!qr, 
+        lastDisconnect: lastDisconnect ? {
+          error: lastDisconnect.error?.message,
+          statusCode: (lastDisconnect.error as Boom)?.output?.statusCode
+        } : null
+      });
+
+      if (qr) {
+        console.log('[Baileys] QR Code gerado - tamanho:', qr.length);
+        await updateConnectionStatus('qr_ready', qr, null);
+      }
 
       if (connection === 'close') {
         const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -375,9 +307,9 @@ export async function connectToWhatsApp(): Promise<WASocket> {
         
         // Atualizar status no Supabase
         await updateConnectionStatus('connected', null, socket?.user);
-      } else if (qrCode) {
-        console.log('[Baileys] QR Code gerado');
-        await updateConnectionStatus('qr_ready', qrCode, null);
+      } else if (connection === 'connecting') {
+        console.log('[Baileys] Iniciando conexão...');
+        await updateConnectionStatus('connecting', null, null);
       }
     });
 
@@ -531,14 +463,47 @@ async function updateConnectionStatus(
   errorMessage: string | null = null
 ) {
   try {
-    // Esta função precisa de um user_id válido
-    // Em uma implementação real, você deveria ter acesso ao user_id atual
-    // Por agora, vamos usar uma abordagem diferente
-    
+    if (!supabaseClient) {
+      console.log(`[Baileys] Status atualizado para: ${status} (Supabase não inicializado)`);
+      return;
+    }
+
     console.log(`[Baileys] Atualizando status para: ${status}`);
-    
-    // Como não temos acesso direto ao user_id aqui, vamos deixar que
-    // as APIs route handlers façam essas atualizações
+
+    // Buscar o primeiro usuário admin/ativo para associar a conexão WhatsApp
+    const { data: users, error: userError } = await supabaseClient
+      .from('profiles')
+      .select('user_id')
+      .eq('role', 'admin')
+      .limit(1);
+
+    if (userError || !users || users.length === 0) {
+      console.warn(`[Baileys] Nenhum usuário admin encontrado para associar a conexão`);
+      return;
+    }
+
+    const userId = users[0].user_id;
+
+    // Tentar upsert na tabela de conexões WhatsApp
+    const { error } = await supabaseClient
+      .from('whatsapp_connections')
+      .upsert({
+        user_id: userId,
+        status: status,
+        qr_code: qrCode,
+        whatsapp_user: whatsappUser,
+        phone_number: whatsappUser?.id || null,
+        error_message: errorMessage,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (error) {
+      console.error('[Baileys] Erro ao atualizar status no Supabase:', error);
+    } else {
+      console.log('[Baileys] Status atualizado com sucesso no Supabase');
+    }
     
   } catch (error) {
     console.error('[Baileys] Erro ao atualizar status no Supabase:', error);
@@ -551,6 +516,14 @@ if (process.env.NODE_ENV === 'production' || process.env.PRIMARY_INSTANCE === 't
   setTimeout(async () => {
     try {
       console.log('[Baileys] Iniciando conexão automática...');
+      
+      // Inicializar cliente Supabase para operações automáticas
+      if (!supabaseClient) {
+        const { createClient } = await import('@/utils/supabase/server');
+        const client = await createClient();
+        initializeSupabaseClient(client);
+      }
+      
       await connectToWhatsApp();
       console.log('[Baileys] Conexão automática estabelecida com sucesso!');
     } catch (err) {
