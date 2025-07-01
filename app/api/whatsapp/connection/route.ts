@@ -244,23 +244,20 @@ async function updateConnectionStatus(
     // Usar o cliente servidor com autenticação adequada
     const supabaseServer = await createClient();
     
-    const updateData = {
-      user_id: userId,
-      status: status,
-      qr_code: qrCode,
-      whatsapp_user: whatsappUser,
-      phone_number: whatsappUser?.id || null,
-      connected_at: status === 'connected' ? new Date().toISOString() : null,
-      disconnected_at: status === 'disconnected' ? new Date().toISOString() : null,
-      error_message: errorMessage
-    };
-
-    const { error } = await supabaseServer
-      .from('whatsapp_connections')
-      .upsert(updateData);
+    // Usar a função upsert segura que evitará conflitos de chave duplicada
+    const { data, error } = await supabaseServer.rpc('upsert_whatsapp_connection', {
+      p_user_id: userId,
+      p_status: status,
+      p_qr_code: qrCode,
+      p_whatsapp_user: whatsappUser,
+      p_phone_number: whatsappUser?.id || null,
+      p_error_message: errorMessage
+    });
 
     if (error) {
       console.error('Erro ao atualizar status no banco:', error);
+    } else {
+      console.log('Status WhatsApp atualizado com sucesso:', data);
     }
   } catch (error) {
     console.error('Erro ao conectar com banco para atualizar status:', error);

@@ -56,25 +56,18 @@ export function useWhatsAppConnection() {
           error: data.error_message
         });
       } else {
-        // Criar registro inicial se não existir
+        // Criar registro inicial se não existir usando função upsert segura
         if (user?.id) {
           try {
-            const { error } = await supabase
-              .from('whatsapp_connections')
-              .upsert({
-                user_id: user.id,
-                status: 'connecting',
-                qr_code: null,
-                whatsapp_user: null,
-                phone_number: null,
-                connected_at: null,
-                disconnected_at: null,
-                error_message: null
-              });
+            const { data, error } = await supabase.rpc('upsert_whatsapp_connection', {
+              p_user_id: user.id,
+              p_status: 'connecting'
+            });
 
             if (error) {
               console.error('Erro ao criar conexão inicial:', error);
             } else {
+              console.log('Conexão inicial criada:', data);
               // Solicitar geração do QR Code
               try {
                 await fetch('/api/whatsapp/connection');

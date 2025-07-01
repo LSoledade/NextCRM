@@ -14,6 +14,7 @@ interface ChatListItem {
     last_message: string;
     last_message_timestamp: string;
     is_from_lead: boolean;
+    unread_count?: number;
 }
 
 interface WhatsappChatListProps {
@@ -53,12 +54,20 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
             setLoading(true);
             setError(null);
             try {
+                // Get current user first
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    setError('Usuário não autenticado');
+                    return;
+                }
+
                 // Query otimizada: buscar a última mensagem de cada lead que tem mensagens WhatsApp
                 const { data: chatData, error: chatError } = await supabase
-                    .rpc('get_whatsapp_chat_list');
+                    .rpc('get_whatsapp_chat_list', { p_user_id: user.id });
 
                 if (chatError) {
-                    console.log('RPC não encontrada, usando query alternativa...');
+                    console.log('RPC não encontrada, usando query alternativa...', chatError);
                     
                     // Fallback: buscar todas as mensagens e processar no frontend
                     const { data: allMessages, error: messagesError } = await supabase
@@ -123,11 +132,14 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                             status: item.lead_status,
                             user_id: item.lead_user_id,
                             created_at: item.lead_created_at,
-                            updated_at: item.lead_updated_at
+                            updated_at: item.lead_updated_at,
+                            company: item.lead_company,
+                            source: item.lead_source
                         },
-                        last_message: item.last_message || 'Mensagem sem conteúdo',
+                        last_message: item.last_message_content || 'Mensagem sem conteúdo',
                         last_message_timestamp: item.last_message_timestamp,
-                        is_from_lead: item.is_from_lead
+                        is_from_lead: item.last_message_direction === 'incoming',
+                        unread_count: item.unread_count || 0
                     })) || [];
 
                     setChatList(chatListData);
@@ -217,9 +229,16 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                                     </p>
                                 </div>
                             </div>
-                            <p className="text-xs text-muted-foreground ml-2">
-                                {formatMessageTime(chat.last_message_timestamp)}
-                            </p>
+                            <div className="flex flex-col items-end ml-2">
+                                <p className="text-xs text-muted-foreground">
+                                    {formatMessageTime(chat.last_message_timestamp)}
+                                </p>
+                                {chat.unread_count && chat.unread_count > 0 && (
+                                    <div className="bg-primary text-primary-foreground rounded-full min-w-[20px] h-5 flex items-center justify-center text-xs font-medium mt-1">
+                                        {chat.unread_count > 99 ? '99+' : chat.unread_count}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))
                 )}

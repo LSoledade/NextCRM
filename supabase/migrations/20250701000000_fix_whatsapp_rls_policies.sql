@@ -41,6 +41,13 @@ FOR DELETE
 TO authenticated
 USING ((SELECT auth.uid()) = user_id);
 
+-- Política para Realtime (necessária para subscriptions)
+CREATE POLICY "Realtime access for whatsapp_connections"
+ON whatsapp_connections
+FOR ALL
+TO authenticated
+USING ((SELECT auth.uid()) = user_id);
+
 -- 3. Criar índice para performance (se não existir)
 CREATE INDEX IF NOT EXISTS idx_whatsapp_connections_user_id 
 ON whatsapp_connections(user_id);
