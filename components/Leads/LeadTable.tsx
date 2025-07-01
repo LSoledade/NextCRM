@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -59,7 +59,34 @@ export default function LeadTable({
 }: LeadTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  // DropdownMenu handles its own open/close state, no need for anchorEl or selectedLead for menu here
+  // Ordenação
+  const [sortBy, setSortBy] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Função para ordenar os leads
+  const sortedLeads = useMemo(() => {
+    const sorted = [...leads];
+    sorted.sort((a, b) => {
+      let aValue = a[sortBy as keyof Lead];
+      let bValue = b[sortBy as keyof Lead];
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortOrder === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+      // Para datas (created_at)
+      if (sortBy === 'created_at' && typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortOrder === 'asc'
+          ? new Date(aValue).getTime() - new Date(bValue).getTime()
+          : new Date(bValue).getTime() - new Date(aValue).getTime();
+      }
+      return 0;
+    });
+    return sorted;
+  }, [leads, sortBy, sortOrder]);
+
+  // Atualizar página ao ordenar
+  useEffect(() => { setPage(0); }, [sortBy, sortOrder]);
 
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
     if (checked === true) {
@@ -108,12 +135,34 @@ export default function LeadTable({
     }
   };
 
-  const paginatedLeads = leads.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const paginatedLeads = sortedLeads.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const isAllOnPageSelected = paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedIds.includes(lead.id));
   const isSomeOnPageSelected = paginatedLeads.some(lead => selectedIds.includes(lead.id));
   const selectAllCheckedState = isAllOnPageSelected ? true : isSomeOnPageSelected ? 'indeterminate' : false;
 
+  // Customização de colunas
+  const defaultColumns = [
+    { key: 'name', label: 'Nome' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Telefone' },
+    { key: 'status', label: 'Status' },
+    { key: 'source', label: 'Origem' },
+    { key: 'tags', label: 'Tags' },
+    { key: 'created_at', label: 'Criado em' },
+  ];
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leads_visible_columns');
+      if (saved) return JSON.parse(saved);
+    }
+    return defaultColumns.map(c => c.key);
+  });
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leads_visible_columns', JSON.stringify(visibleColumns));
+    }
+  }, [visibleColumns]);
 
   if (loading) {
     return (
@@ -151,13 +200,76 @@ export default function LeadTable({
                     aria-label="Selecionar todos na página"
                   />
                 </TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Telefone</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Origem</TableHead>
-                <TableHead>Criado em</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                {visibleColumns.includes('name') && (
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      setSortBy('name');
+                      setSortOrder(sortBy === 'name' && sortOrder === 'asc' ? 'desc' : 'asc');
+                    }}
+                  >
+                    Nome {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </TableHead>
+                )}
+                {visibleColumns.includes('email') && (
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      setSortBy('email');
+                      setSortOrder(sortBy === 'email' && sortOrder === 'asc' ? 'desc' : 'asc');
+                    }}
+                  >
+                    Email {sortBy === 'email' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </TableHead>
+                )}
+                {visibleColumns.includes('phone') && (
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      setSortBy('phone');
+                      setSortOrder(sortBy === 'phone' && sortOrder === 'asc' ? 'desc' : 'asc');
+                    }}
+                  >
+                    Telefone {sortBy === 'phone' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </TableHead>
+                )}
+                {visibleColumns.includes('status') && (
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      setSortBy('status');
+                      setSortOrder(sortBy === 'status' && sortOrder === 'asc' ? 'desc' : 'asc');
+                    }}
+                  >
+                    Status {sortBy === 'status' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </TableHead>
+                )}
+                {visibleColumns.includes('source') && (
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      setSortBy('source');
+                      setSortOrder(sortBy === 'source' && sortOrder === 'asc' ? 'desc' : 'asc');
+                    }}
+                  >
+                    Origem {sortBy === 'source' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </TableHead>
+                )}
+                {visibleColumns.includes('tags') && (
+                  <TableHead>Tags</TableHead>
+                )}
+                {visibleColumns.includes('created_at') && (
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      setSortBy('created_at');
+                      setSortOrder(sortBy === 'created_at' && sortOrder === 'asc' ? 'desc' : 'asc');
+                    }}
+                  >
+                    Criado em {sortBy === 'created_at' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </TableHead>
+                )}
+                {/* <TableHead className="text-right">Ações</TableHead> */}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -165,6 +277,13 @@ export default function LeadTable({
                 <TableRow
                   key={lead.id}
                   data-state={selectedIds.includes(lead.id) && "selected"}
+                  className={
+                    cn(
+                      "transition-colors cursor-pointer hover:bg-muted/60",
+                      selectedIds.includes(lead.id) && "bg-primary/10"
+                    )
+                  }
+                  onClick={() => onView(lead)}
                 >
                   <TableCell>
                     <Checkbox
@@ -173,57 +292,63 @@ export default function LeadTable({
                       aria-label={`Selecionar lead ${lead.name}`}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{lead.name}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="w-4 h-4" />
-                      {lead.email}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {lead.phone ? (
+                  {visibleColumns.includes('name') && (
+                    <TableCell className="font-medium">{lead.name}</TableCell>
+                  )}
+                  {visibleColumns.includes('email') && (
+                    <TableCell>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <PhoneCall className="w-4 h-4" />
-                        {lead.phone}
+                        <Mail className="w-4 h-4" />
+                        {lead.email}
                       </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Não informado</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusBadgeVariant(lead.status)}>{lead.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {lead.source || 'Não informada'}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(lead.created_at)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="w-8 h-8 p-0">
-                          <span className="sr-only">Abrir menu</span>
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onView(lead)}>
-                          <Eye className="w-4 h-4 mr-2" /> Visualizar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit(lead)}>
-                          <Edit3 className="w-4 h-4 mr-2" /> Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => onDelete(lead)}
-                          className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-700/20 dark:focus:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                    </TableCell>
+                  )}
+                  {visibleColumns.includes('phone') && (
+                    <TableCell>
+                      {lead.phone ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <PhoneCall className="w-4 h-4" />
+                          {lead.phone}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Não informado</span>
+                      )}
+                    </TableCell>
+                  )}
+                  {visibleColumns.includes('status') && (
+                    <TableCell>
+                      <Badge variant={getStatusBadgeVariant(lead.status)}>{lead.status}</Badge>
+                    </TableCell>
+                  )}
+                  {visibleColumns.includes('source') && (
+                    <TableCell className="text-sm text-muted-foreground">
+                      {lead.source || 'Não informada'}
+                    </TableCell>
+                  )}
+                  {visibleColumns.includes('tags') && (
+                    <TableCell>
+                      {lead.tags && lead.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {lead.tags.slice(0, 3).map((tag, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-xs px-2 py-0.5">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {lead.tags.length > 3 && (
+                            <Badge variant="outline" className="text-xs px-2 py-0.5">+{lead.tags.length - 3}</Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  )}
+                  {visibleColumns.includes('created_at') && (
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(lead.created_at)}
+                    </TableCell>
+                  )}
+                  {/* <TableCell className="text-right">Ações</TableCell> */}
                 </TableRow>
               ))}
             </TableBody>

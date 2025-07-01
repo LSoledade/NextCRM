@@ -89,8 +89,8 @@ export const useOptimizedDashboardStats = () => {
     const newLeadsCount = leads.filter(lead => lead.status === 'New').length;
     const convertedLeads = leads.filter(lead => lead.status === 'Converted').length;
     const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
-    const pendingTasks = tasks.filter(task => task.status !== 'Done').length;
-    const completedTasks = tasks.filter(task => task.status === 'Done').length;
+    const pendingTasks = tasks.filter(task => task.status !== 'Concluidas').length;
+    const completedTasks = tasks.filter(task => task.status === 'Concluidas').length;
     const activeSessions = sessions.filter(session =>
       session.status === 'Scheduled' || session.status === 'InProgress'
     ).length;
@@ -139,7 +139,7 @@ export const useOptimizedDashboardStats = () => {
     return tasks.filter(task =>
       task.due_date &&
       task.due_date.startsWith(today) &&
-      task.status !== 'Done'
+      task.status !== 'Concluidas'
     ).sort((a, b) => {
       if (!a.due_date || !b.due_date) return 0;
       return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();

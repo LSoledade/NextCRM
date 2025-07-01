@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button'; // Added buttonVariants
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -34,6 +34,11 @@ import {
   useBatchUpdateLeadsSourceMutation,
   useBatchDeleteLeadsMutation,
 } from '@/hooks/useLeadMutations'; // Importar os novos hooks
+import Papa from 'papaparse';
+import dynamic from 'next/dynamic';
+import { useToast } from '@/hooks/use-toast';
+
+const LeadSheet = dynamic(() => import('@/components/Leads/LeadSheet'), { ssr: false });
 
 type Lead = Database['public']['Tables']['leads']['Row'];
 type InsertLead = Database['public']['Tables']['leads']['Insert'];
@@ -54,6 +59,7 @@ interface FilterState {
 export default function LeadsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
@@ -70,6 +76,8 @@ export default function LeadsPage() {
     tag: '',
     dateRange: '',
   });
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
   // Função para buscar leads do Supabase com base nos filtros
   const fetchLeads = async () => {
@@ -122,11 +130,10 @@ export default function LeadsPage() {
   const handleCreateLead = async (leadData: InsertLead) => {
     try {
       await createLeadMutation.mutateAsync(leadData);
-      // A invalidação é feita no onSuccess do hook
+      toast({ title: 'Lead criado com sucesso!', variant: 'default' });
     } catch (error) {
-      console.error('Erro ao criar lead:', error);
-      // Adicionar notificação para o usuário (ex: usando um toast)
-      throw error; // Re-throw para o LeadDialog poder tratar e não fechar, por exemplo
+      toast({ title: 'Erro ao criar lead', description: String(error), variant: 'destructive' });
+      throw error;
     }
   };
 
@@ -134,8 +141,9 @@ export default function LeadsPage() {
     if (!selectedLead) return;
     try {
       await updateLeadMutation.mutateAsync({ ...leadData, id: selectedLead.id });
+      toast({ title: 'Lead atualizado com sucesso!', variant: 'default' });
     } catch (error) {
-      console.error('Erro ao atualizar lead:', error);
+      toast({ title: 'Erro ao atualizar lead', description: String(error), variant: 'destructive' });
       throw error;
     }
   };
@@ -146,31 +154,9 @@ export default function LeadsPage() {
       await deleteLeadMutation.mutateAsync(selectedLead.id);
       setDeleteDialogOpen(false);
       setSelectedLead(null);
+      toast({ title: 'Lead excluído com sucesso!', variant: 'default' });
     } catch (error) {
-      console.error('Erro ao deletar lead:', error);
-      // Adicionar notificação para o usuário
-    }
-  };
-
-  const handleBatchStatusUpdate = async (status: string) => {
-    if (selectedIds.length === 0) return;
-    try {
-      await batchUpdateLeadsStatusMutation.mutateAsync({ ids: selectedIds, status });
-      setSelectedIds([]); // Limpar seleção após sucesso
-    } catch (error) {
-      console.error('Erro ao atualizar status em lote:', error);
-      // Adicionar notificação para o usuário
-    }
-  };
-
-  const handleBatchSourceUpdate = async (source: string) => {
-    if (selectedIds.length === 0) return;
-    try {
-      await batchUpdateLeadsSourceMutation.mutateAsync({ ids: selectedIds, source });
-      setSelectedIds([]);
-    } catch (error) {
-      console.error('Erro ao atualizar origem em lote:', error);
-      // Adicionar notificação para o usuário
+      toast({ title: 'Erro ao deletar lead', description: String(error), variant: 'destructive' });
     }
   };
 
@@ -180,9 +166,9 @@ export default function LeadsPage() {
       await batchDeleteLeadsMutation.mutateAsync(selectedIds);
       setSelectedIds([]);
       setBatchDeleteDialogOpen(false);
+      toast({ title: 'Leads excluídos com sucesso!', variant: 'default' });
     } catch (error) {
-      console.error('Erro ao deletar leads em lote:', error);
-      // Adicionar notificação para o usuário
+      toast({ title: 'Erro ao deletar leads', description: String(error), variant: 'destructive' });
     }
   };
 
@@ -197,7 +183,8 @@ export default function LeadsPage() {
   };
 
   const handleViewLead = (lead: Lead) => {
-    router.push(`/leads/${lead.id}`);
+    setSelectedLeadId(lead.id);
+    setSheetOpen(true);
   };
 
   const handleSaveLead = async (leadData: InsertLead) => {
@@ -212,6 +199,88 @@ export default function LeadsPage() {
   const availableTags = Array.from(
     new Set((leads || []).flatMap(lead => lead.tags || []))
   ).sort();
+
+  // Função para exportar leads filtrados para CSV
+  const handleExportCSV = () => {
+    if (!leads || leads.length === 0) return;
+    const csv = Papa.unparse(
+      leads.map(l => ({
+        name: l.name,
+        email: l.email,
+        phone: l.phone || '',
+        status: l.status,
+        source: l.source || '',
+        tags: (l.tags || []).join(';'),
+      }))
+    );
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'leads_export.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Estado e refs para importação
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Função para importar leads via CSV
+  const handleImportCSV = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!fileInputRef.current?.files?.[0]) return;
+    setImporting(true);
+    setImportResult(null);
+    const formData = new FormData();
+    formData.append('file', fileInputRef.current.files[0]);
+    try {
+      const res = await fetch('/api/leads/import', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setImportResult(`Importação concluída: ${data.count} leads importados.`);
+        toast({ title: 'Importação concluída', description: `${data.count} leads importados.`, variant: 'default' });
+      } else {
+        setImportResult(`Erro: ${data.error}`);
+        toast({ title: 'Erro ao importar leads', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      setImportResult('Erro inesperado ao importar.');
+      toast({ title: 'Erro inesperado ao importar', variant: 'destructive' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Restaurar handlers handleBatchStatusUpdate e handleBatchSourceUpdate para atualização em lote de status e origem dos leads.
+  const handleBatchStatusUpdate = async (status: string) => {
+    if (selectedIds.length === 0) return;
+    try {
+      await batchUpdateLeadsStatusMutation.mutateAsync({ ids: selectedIds, status });
+      setSelectedIds([]);
+      toast({ title: 'Status atualizado em lote!', variant: 'default' });
+    } catch (error) {
+      toast({ title: 'Erro ao atualizar status em lote', description: String(error), variant: 'destructive' });
+    }
+  };
+
+  const handleBatchSourceUpdate = async (source: string) => {
+    if (selectedIds.length === 0) return;
+    try {
+      await batchUpdateLeadsSourceMutation.mutateAsync({ ids: selectedIds, source });
+      setSelectedIds([]);
+      toast({ title: 'Origem atualizada em lote!', variant: 'default' });
+    } catch (error) {
+      toast({ title: 'Erro ao atualizar origem em lote', description: String(error), variant: 'destructive' });
+    }
+  };
 
   if (authLoading || leadsLoading) {
     return (
@@ -256,11 +325,11 @@ export default function LeadsPage() {
         <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <h1 className="text-3xl font-bold tracking-tight">Leads</h1>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
               <Upload className="w-4 h-4 mr-2" />
               Importar
             </Button>
-            <Button variant="outline" size="sm" disabled={leads.length === 0}>
+            <Button variant="outline" size="sm" disabled={leads.length === 0} onClick={handleExportCSV}>
               <Download className="w-4 h-4 mr-2" />
               Exportar
             </Button>
@@ -300,13 +369,17 @@ export default function LeadsPage() {
         {/* Table */}
         <LeadTable
           leads={leads}
-          loading={false} // This was hardcoded, ensure it's reactive if needed
+          loading={false}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           onEdit={handleEditLead}
           onDelete={handleDeleteDialogOpen}
           onView={handleViewLead}
         />
+        <LeadSheet open={sheetOpen} leadId={selectedLeadId} onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setSelectedLeadId(null);
+        }} />
 
         {/* Lead Dialog */}
         {/* Assuming LeadDialog is a shadcn/ui Dialog or Sheet.
@@ -367,6 +440,26 @@ export default function LeadsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Modal de Importação */}
+        {importDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg p-6 w-full max-w-md relative">
+              <button className="absolute top-2 right-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white" onClick={() => setImportDialogOpen(false)}>&times;</button>
+              <h2 className="text-lg font-bold mb-2">Importar Leads via CSV</h2>
+              <form onSubmit={handleImportCSV} className="space-y-4">
+                <input type="file" accept=".csv" ref={fileInputRef} required disabled={importing} />
+                <div>
+                  <a href="/leads_template.csv" download className="text-primary underline text-sm">Baixar template CSV</a>
+                </div>
+                <Button type="submit" disabled={importing}>
+                  {importing ? 'Importando...' : 'Importar'}
+                </Button>
+              </form>
+              {importResult && <div className="mt-4 text-sm">{importResult}</div>}
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
