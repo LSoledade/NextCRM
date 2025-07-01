@@ -10,10 +10,13 @@ const COLUMNS = [
   { key: 'Concluidas', label: 'Concluídas' },
 ];
 
-export default function KanbanBoard({ tasks, userRole, onTaskDrop }: {
+export default function KanbanBoard({ tasks, userRole, onTaskDrop, onAddTask, onEditTask, users }: {
   tasks: any[];
   userRole: 'admin' | 'user';
   onTaskDrop: (taskId: string, newStatus: string) => void;
+  onAddTask?: (task: { title: string; description: string; priority: string; status: string }) => Promise<void>;
+  onEditTask?: (task: any) => void;
+  users?: Array<{ id: string; username: string | null; }>;
 }) {
   return (
     <div className="w-full h-full">
@@ -27,6 +30,9 @@ export default function KanbanBoard({ tasks, userRole, onTaskDrop }: {
               tasks={tasks.filter(t => t.status === col.key)}
               userRole={userRole}
               onTaskDrop={onTaskDrop}
+              onAddTask={onAddTask}
+              onEditTask={onEditTask}
+              users={users}
             />
           ))}
         </div>

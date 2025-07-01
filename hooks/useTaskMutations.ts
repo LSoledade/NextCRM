@@ -22,6 +22,7 @@ export const useCreateTaskMutation = (userId: string | undefined, role: 'admin' 
     mutationFn: async (taskData: InsertTask) => {
       if (!userId) throw new Error('User ID is required to create a task.');
       if (role !== 'admin') throw new Error('Apenas administradores podem criar tarefas.');
+      
       const { data, error } = await supabase
         .from('tasks')
         .insert([{ ...taskData, user_id: userId, assigned_to_id: userId, status: 'Backlog' }])

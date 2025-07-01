@@ -5,21 +5,57 @@ import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 // import { useToast } from '@/hooks/use-toast'; // Supondo que você tenha um hook de toast
 
+interface ExtendedUser extends User {
+  role?: 'admin' | 'user';
+  username?: string;
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: ExtendedUser | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshUserProfile: () => Promise<void>;
   // profileError: string | null; // Opcional: para expor erros de perfil
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<ExtendedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileChecked, setProfileChecked] = useState(false);
   // const [profileError, setProfileError] = useState<string | null>(null); // Opcional
   // const { toast } = useToast(); // Supondo que você tenha um hook de toast
+
+  const fetchUserProfile = useCallback(async (authUser: User): Promise<ExtendedUser> => {
+    const { data: profile, error } = await supabase
+      .from('users')
+      .select('role, username')
+      .eq('id', authUser.id)
+      .single();
+
+    if (error) {
+      console.error('Erro ao buscar perfil do usuário:', error);
+      return { ...authUser, role: 'user' }; // Default fallback
+    }
+
+    return {
+      ...authUser,
+      role: profile.role as 'admin' | 'user',
+      username: profile.username
+    };
+  }, []);
+
+  const refreshUserProfile = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const updatedUser = await fetchUserProfile(user);
+      setUser(updatedUser);
+    } catch (error) {
+      console.error('Erro ao atualizar perfil do usuário:', error);
+    }
+  }, [user, fetchUserProfile]);
 
   const ensureUserProfile = useCallback(async (authUser: User | null) => {
     if (!authUser) {
@@ -38,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data: existingUser, error: fetchError } = await supabase
         .from('users')
-        .select('id')
+        .select('id, role, username')
         .eq('id', authUser.id)
         .single();
 
@@ -47,9 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error: insertError } = await supabase.from('users').insert({
           id: authUser.id,
           username: authUser.user_metadata?.name || authUser.email?.split('@')[0] || `user_${authUser.id.substring(0, 8)}`,
-          email: authUser.email, // Store email if available
           role: 'user', // Default role
-          // avatar_url: authUser.user_metadata?.avatar_url // Store avatar if available
         });
 
         if (insertError) {
@@ -59,6 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfileChecked(true); // Mark as checked to avoid retries, even on failure
           return false;
         }
+        
+        // Buscar o perfil recém-criado para obter o role
+        const updatedUser = await fetchUserProfile(authUser);
+        setUser(updatedUser);
+        
         console.log('Perfil do usuário criado com sucesso');
         setProfileChecked(true);
         return true;
@@ -70,7 +109,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      console.log('Perfil do usuário já existe:', existingUser?.id);
+      // Usuário existe, buscar dados completos incluindo role
+      const updatedUser = await fetchUserProfile(authUser);
+      setUser(updatedUser);
+
+      console.log('Perfil do usuário carregado:', existingUser);
       setProfileChecked(true);
       return true;
     } catch (error: any) {
@@ -80,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfileChecked(true); // Mark as checked
       return false;
     }
-  }, [profileChecked]); // Adicionado toast como dependência se usado
+  }, [profileChecked, fetchUserProfile]); // Adicionado fetchUserProfile como dependência
 
   useEffect(() => {
     const getInitialSession = async () => {
@@ -92,12 +135,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         const sessionUser = session?.user ?? null;
-        setUser(sessionUser); // Set user first
-
+        
         if (sessionUser) {
-          // Não resetar profileChecked aqui, pois pode ser uma sessão persistente
+          // Buscar o perfil completo com role antes de definir o usuário
+          const updatedUser = await fetchUserProfile(sessionUser);
+          setUser(updatedUser);
           await ensureUserProfile(sessionUser);
         } else {
+          setUser(null);
           setProfileChecked(false); // No user, so profile isn't checked
         }
       } catch (error) {
@@ -116,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(true);
         // setProfileError(null);
         const sessionUser = session?.user ?? null;
-        setUser(sessionUser); // Update user state immediately
+        setUser(sessionUser as ExtendedUser); // Update user state immediately
 
         if (event === 'SIGNED_IN' && sessionUser) {
           setProfileChecked(false); // Reset for new sign-in, ensure fresh check
@@ -138,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, [ensureUserProfile]);
+  }, [ensureUserProfile, fetchUserProfile]);
 
   const signOut = async () => {
     setLoading(true);
@@ -159,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     signOut,
+    refreshUserProfile,
     // profileError, // Opcional
   };
 

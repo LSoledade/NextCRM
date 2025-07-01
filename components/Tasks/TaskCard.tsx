@@ -2,12 +2,14 @@ import React from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Clock, User, AlertCircle } from 'lucide-react';
+import { Clock, User, AlertCircle, Paperclip } from 'lucide-react';
 
-export default function TaskCard({ task, userRole, draggable = false }: {
+export default function TaskCard({ task, userRole, draggable = false, onEdit, assignedUser }: {
   task: any;
   userRole: 'admin' | 'user';
   draggable?: boolean;
+  onEdit?: (task: any) => void;
+  assignedUser?: { id: string; username: string | null; } | null;
 }) {
   // Drag event handler para arrastar o card
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
@@ -32,59 +34,83 @@ export default function TaskCard({ task, userRole, draggable = false }: {
     return null;
   };
 
+  const getInitials = (name: string | null) => {
+    if (!name) return 'U';
+    return name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const isOverdue = task.due_date && new Date(task.due_date) < new Date();
+  const isDueSoon = task.due_date && new Date(task.due_date) <= new Date(Date.now() + 24 * 60 * 60 * 1000);
+
   return (
     <Card
-      className="group cursor-grab active:cursor-grabbing transition-all duration-200 hover:shadow-md hover:scale-[1.02] bg-card border-border/40 hover:border-primary/20"
+      className={`group transition-all duration-200 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 bg-white border border-gray-200 hover:border-gray-300 ${
+        onEdit ? 'cursor-pointer' : draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+      }`}
       draggable={draggable}
       onDragStart={draggable ? handleDragStart : undefined}
+      onClick={() => onEdit?.(task)}
     >
-      <CardContent className="p-3 space-y-3">
-        {/* Título da tarefa */}
-        <div className="font-medium text-sm leading-tight text-foreground line-clamp-2">
+      <CardContent className="p-3 space-y-2.5">
+        {/* Labels de prioridade (só para High e Urgent) */}
+        {(task.priority === 'High' || task.priority === 'Urgent') && (
+          <div className="flex gap-1">
+            <div className={`h-1 w-full rounded-full ${
+              task.priority === 'Urgent' ? 'bg-red-500' : 'bg-orange-500'
+            }`} />
+          </div>
+        )}
+
+        {/* Título da tarefa - estilo Trello */}
+        <div className="text-sm font-normal text-gray-800 leading-snug break-words">
           {task.title}
         </div>
 
-        {/* Descrição se existir */}
+        {/* Descrição se existir - mais sutil */}
         {task.description && (
-          <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+          <div className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
             {task.description}
           </div>
         )}
 
-        {/* Tags e badges */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge 
-            variant={getPriorityColor(task.priority)} 
-            className="text-xs px-2 py-0.5 flex items-center gap-1"
-          >
-            {getPriorityIcon(task.priority)}
-            {task.priority}
-          </Badge>
-        </div>
+        {/* Badges e indicadores */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            {/* Data de vencimento */}
+            {task.due_date && (
+              <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${
+                isOverdue 
+                  ? 'bg-red-100 text-red-700' 
+                  : isDueSoon 
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-gray-100 text-gray-700'
+              }`}>
+                <Clock className="w-3 h-3" />
+                <span>
+                  {new Date(task.due_date).toLocaleDateString('pt-BR', { 
+                    day: '2-digit', 
+                    month: 'short' 
+                  })}
+                </span>
+              </div>
+            )}
 
-        {/* Footer com informações adicionais */}
-        <div className="flex items-center justify-between pt-1">
-          {/* Data de vencimento */}
-          {task.due_date && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="w-3 h-3" />
-              <span>
-                {new Date(task.due_date).toLocaleDateString('pt-BR', { 
-                  day: '2-digit', 
-                  month: 'short' 
-                })}
-              </span>
-            </div>
-          )}
+            {/* Indicador de descrição */}
+            {task.description && (
+              <div className="p-1 rounded bg-gray-100">
+                <Paperclip className="w-3 h-3 text-gray-600" />
+              </div>
+            )}
+          </div>
 
-          {/* Avatar do responsável */}
-          <div className="flex items-center gap-1">
-            <Avatar className="w-5 h-5">
-              <AvatarFallback className="text-xs bg-primary/10 text-primary border">
-                <User className="w-3 h-3" />
+          {/* Avatar do usuário responsável */}
+          {assignedUser && (
+            <Avatar className="w-6 h-6 border border-gray-200">
+              <AvatarFallback className="text-xs bg-blue-50 text-blue-700 font-medium">
+                {getInitials(assignedUser.username)}
               </AvatarFallback>
             </Avatar>
-          </div>
+          )}
         </div>
       </CardContent>
     </Card>
