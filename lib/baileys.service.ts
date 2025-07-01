@@ -19,7 +19,34 @@ import Redis from 'ioredis';
 import { supabase } from './supabase';
 
 // --- LÓGICA DO REDIS AUTH STORE ---
-const redis = new Redis(process.env.REDIS_URL!);
+const redis = new Redis(process.env.REDIS_URL!, {
+  maxRetriesPerRequest: 3,
+  lazyConnect: true,
+  connectTimeout: 10000,
+  commandTimeout: 5000,
+  family: 4, // Use IPv4
+});
+
+// Adicionar listeners de eventos para monitorar a conexão
+redis.on('error', (error: Error) => {
+  console.error('Redis connection error:', error.message);
+});
+
+redis.on('connect', () => {
+  console.log('Redis connected successfully');
+});
+
+redis.on('ready', () => {
+  console.log('Redis ready for commands');
+});
+
+redis.on('close', () => {
+  console.log('Redis connection closed');
+});
+
+redis.on('reconnecting', () => {
+  console.log('Redis reconnecting...');
+});
 
 // BufferJSON replacement for handling binary data in Redis
 const BufferJSON = {
@@ -41,16 +68,31 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
   const BIND_KEY = 'baileys-auth-creds';
 
   const readData = async (key: string): Promise<any> => {
-    const data = await redis.get(`${BIND_KEY}:${key}`);
-    return data ? JSON.parse(data, BufferJSON.reviver) : null;
+    try {
+      const data = await redis.get(`${BIND_KEY}:${key}`);
+      return data ? JSON.parse(data, BufferJSON.reviver) : null;
+    } catch (error) {
+      console.error(`Error reading Redis data for key ${key}:`, error);
+      return null;
+    }
   };
 
-  const writeData = (data: any, key: string): Promise<any> => {
-    return redis.set(`${BIND_KEY}:${key}`, JSON.stringify(data, BufferJSON.replacer));
+  const writeData = async (data: any, key: string): Promise<any> => {
+    try {
+      return await redis.set(`${BIND_KEY}:${key}`, JSON.stringify(data, BufferJSON.replacer));
+    } catch (error) {
+      console.error(`Error writing Redis data for key ${key}:`, error);
+      throw error;
+    }
   };
 
-  const removeData = (key: string): Promise<number> => {
-    return redis.del(`${BIND_KEY}:${key}`);
+  const removeData = async (key: string): Promise<number> => {
+    try {
+      return await redis.del(`${BIND_KEY}:${key}`);
+    } catch (error) {
+      console.error(`Error removing Redis data for key ${key}:`, error);
+      return 0;
+    }
   };
 
   const creds: AuthenticationCreds = (await readData('creds')) || initAuthCreds();
@@ -90,6 +132,17 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
   };
 };
 
+// Função para verificar se o Redis está disponível
+const isRedisAvailable = async (): Promise<boolean> => {
+  try {
+    await redis.ping();
+    return true;
+  } catch (error) {
+    console.error('Redis não está disponível:', error);
+    return false;
+  }
+};
+
 // --- FIM DA LÓGICA DO REDIS AUTH STORE ---
 
 let socket: WASocket | null = null;
@@ -107,6 +160,12 @@ async function uploadMediaToSupabase(buffer: Buffer, mimeType: string, leadId: s
 
 export async function connectToWhatsApp() {
   if (socket) return socket;
+
+  // Verificar se Redis está disponível antes de prosseguir
+  const redisIsAvailable = await isRedisAvailable();
+  if (!redisIsAvailable) {
+    throw new Error('Redis não está disponível. Necessário para o funcionamento do WhatsApp.');
+  }
 
   const { state, saveCreds } = await createRedisAuthState();
   const { version, isLatest } = await fetchLatestBaileysVersion();

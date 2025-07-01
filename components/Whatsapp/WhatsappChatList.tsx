@@ -22,19 +22,45 @@ interface WhatsappChatListProps {
 export function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
     const [chatList, setChatList] = useState<ChatListItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchChatList = async () => {
             setLoading(true);
-            // Esta função RPC precisa ser criada no Supabase
-            const { data, error } = await supabase.rpc('get_whatsapp_chat_list');
-            if (data) {
-                setChatList(data);
+            setError(null);
+            try {
+                // First, try to get leads with WhatsApp numbers
+                const { data: leads, error: leadsError } = await supabase
+                    .from('leads')
+                    .select('*')
+                    .not('phone', 'is', null)
+                    .order('updated_at', { ascending: false });
+
+                if (leadsError) {
+                    console.error('Erro ao buscar leads:', leadsError);
+                    setError('Erro ao carregar conversas');
+                    return;
+                }
+
+                // For now, we'll show all leads with phone numbers
+                // In the future, this should be filtered to only leads with WhatsApp messages
+                const chatListData: ChatListItem[] = leads?.map(lead => ({
+                    lead,
+                    last_message: 'Nenhuma mensagem ainda',
+                    last_message_timestamp: lead.updated_at || lead.created_at
+                })) || [];
+
+                setChatList(chatListData);
+            } catch (error) {
+                console.error('Erro ao buscar lista de conversas:', error);
+                setError('Erro de conexão');
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
+
         fetchChatList();
     }, []);
 
@@ -63,6 +89,24 @@ export function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                 {loading ? (
                     <div className="p-4 space-y-4">
                         {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+                    </div>
+                ) : error ? (
+                    <div className="p-4">
+                        <div className="text-center text-muted-foreground">
+                            <p>{error}</p>
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                className="mt-2 text-sm text-primary hover:underline"
+                            >
+                                Tentar novamente
+                            </button>
+                        </div>
+                    </div>
+                ) : filteredChats.length === 0 ? (
+                    <div className="p-4">
+                        <div className="text-center text-muted-foreground">
+                            <p>Nenhuma conversa encontrada</p>
+                        </div>
                     </div>
                 ) : (
                     filteredChats.map(chat => (

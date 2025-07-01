@@ -30,12 +30,39 @@ export async function GET(request: NextRequest) {
       status = 'connected';
       whatsappUser = socket.user;
     } else {
-      // Inicia conexão ou obtém QR Code
-      await connectToWhatsApp();
-      qrCode = getQRCode();
-      
-      if (qrCode) {
-        status = 'qr_ready';
+      // Tentar iniciar conexão
+      try {
+        await connectToWhatsApp();
+        qrCode = getQRCode();
+        
+        if (qrCode) {
+          status = 'qr_ready';
+        }
+      } catch (error: any) {
+        console.error('Erro ao conectar WhatsApp:', error.message);
+        
+        // Se o erro for relacionado ao Redis, atualizar status
+        if (error.message?.includes('Redis')) {
+          status = 'error';
+          await supabase
+            .from('whatsapp_connections')
+            .upsert({
+              user_id: user.id,
+              status: 'error',
+              error_message: 'Erro de conexão com o Redis. Tente novamente em alguns minutos.',
+              qr_code: null,
+              whatsapp_user: null,
+              phone_number: null,
+              connected_at: null,
+              disconnected_at: new Date().toISOString()
+            });
+
+          return NextResponse.json({ 
+            error: 'Serviço temporariamente indisponível. Tente novamente em alguns minutos.' 
+          }, { status: 503 });
+        }
+        
+        throw error; // Re-throw outros erros
       }
     }
 
