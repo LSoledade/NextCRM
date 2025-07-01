@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/server';
 import Papa from 'papaparse';
 
-// Configuração do Supabase (ajuste se necessário)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-export const runtime = 'edge'; // ou 'nodejs' se precisar de fs
+export const runtime = 'nodejs'; // Mudando para nodejs para melhor compatibilidade
 
 export async function POST(req: NextRequest) {
   try {
+    // Verificar autenticação através do cliente Supabase
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    // Verificar se o usuário é admin
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.role !== 'admin') {
+      console.error('Admin verification failed:', profileError);
+      return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem importar leads.' }, { status: 403 });
+    }
     const formData = await req.formData();
     const file = formData.get('file');
     if (!file || typeof file === 'string') {
@@ -65,12 +79,6 @@ export async function POST(req: NextRequest) {
     }).filter(l => l.name && l.email);
     if (leads.length === 0) {
       return NextResponse.json({ error: 'Nenhum lead válido encontrado.' }, { status: 400 });
-    }
-
-    // Obter informações do usuário
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não autenticado.' }, { status: 401 });
     }
 
     // Separar leads que são alunos

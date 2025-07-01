@@ -33,7 +33,20 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
+      console.error('Auth error:', authError);
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    // Verificar se o usuário é admin
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.role !== 'admin') {
+      console.error('Admin verification failed:', profileError);
+      return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem importar leads.' }, { status: 403 });
     }
 
     const { totalRows, totalChunks, userId } = await request.json();

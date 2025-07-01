@@ -2,8 +2,10 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 // import { useToast } from '@/hooks/use-toast'; // Supondo que você tenha um hook de toast
+
+const supabase = createClient();
 
 interface ExtendedUser extends User {
   role?: 'admin' | 'user';

@@ -33,7 +33,20 @@ export async function GET(
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
+      console.error('Auth error:', authError);
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    // Verificar se o usuário é admin
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.role !== 'admin') {
+      console.error('Admin verification failed:', profileError);
+      return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem acessar status de importação.' }, { status: 403 });
     }
 
     const jobId = params.jobId;
