@@ -50,13 +50,19 @@ export async function GET(
     }
 
     const jobId = params.jobId;
+    console.log('Buscando job com ID:', jobId);
     const job = importJobs.get(jobId);
 
     if (!job) {
+      console.log('Job não encontrado:', jobId);
+      console.log('Jobs disponíveis:', Array.from(importJobs.keys()));
       return NextResponse.json({ error: 'Job não encontrado' }, { status: 404 });
     }
 
+    console.log('Job encontrado:', job);
+
     if (job.userId !== user.id) {
+      console.log('Usuário não autorizado para o job:', { jobUserId: job.userId, currentUserId: user.id });
       return NextResponse.json({ error: 'Não autorizado para este job' }, { status: 403 });
     }
 

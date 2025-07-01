@@ -362,6 +362,7 @@ export default function LeadsPage() {
       }
 
       // Iniciar job de importação
+      console.log('Iniciando job de importação...', { totalRows: csvData.length, totalChunks: chunks.length, userId: user?.id });
       const initResponse = await fetch('/api/leads/import/batch', {
         method: 'POST',
         headers: { 
@@ -375,22 +376,28 @@ export default function LeadsPage() {
       });
 
       if (!initResponse.ok) {
-        throw new Error('Falha ao inicializar importação');
+        const errorData = await initResponse.json();
+        console.error('Erro ao inicializar importação:', errorData);
+        throw new Error(errorData.error || 'Falha ao inicializar importação');
       }
 
       const { jobId } = await initResponse.json();
+      console.log('Job criado com ID:', jobId);
       setImportJobId(jobId);
       setImportStatus('processing');
 
       // Enviar chunks sequencialmente com retry
+      console.log('Enviando chunks...', chunks.length);
       for (let i = 0; i < chunks.length; i++) {
+        console.log(`Processando chunk ${i + 1}/${chunks.length}`);
         await processChunkWithRetry(chunks[i], jobId, i);
         setProcessedRows((i + 1) * CHUNK_SIZE);
         setImportProgress(((i + 1) / chunks.length) * 100);
       }
 
+      console.log('Finalizando job...');
       // Finalizar job
-      await fetch('/api/leads/import/batch/complete', {
+      const completeResponse = await fetch('/api/leads/import/batch/complete', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
@@ -398,6 +405,12 @@ export default function LeadsPage() {
         body: JSON.stringify({ jobId })
       });
 
+      if (!completeResponse.ok) {
+        const errorData = await completeResponse.json();
+        console.error('Erro ao finalizar job:', errorData);
+      }
+
+      console.log('Iniciando polling...');
       // Iniciar polling para status final
       startPolling(jobId);
 
@@ -413,6 +426,7 @@ export default function LeadsPage() {
   const processChunkWithRetry = async (chunk: any[], jobId: string, chunkIndex: number, maxRetries = 3) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        console.log(`Enviando chunk ${chunkIndex}, tentativa ${attempt}`);
         const response = await fetch('/api/leads/import/batch/chunk', {
           method: 'POST',
           headers: { 
@@ -426,10 +440,13 @@ export default function LeadsPage() {
         });
 
         if (response.ok) {
+          const result = await response.json();
+          console.log(`Chunk ${chunkIndex} processado com sucesso:`, result);
           return; // Sucesso
         }
 
         const errorData = await response.json();
+        console.error(`Erro no chunk ${chunkIndex}, tentativa ${attempt}:`, errorData);
         if (attempt === maxRetries) {
           throw new Error(errorData.error || 'Falha ao processar chunk');
         }
@@ -437,6 +454,7 @@ export default function LeadsPage() {
         // Backoff exponencial
         await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
       } catch (error) {
+        console.error(`Erro no chunk ${chunkIndex}, tentativa ${attempt}:`, error);
         if (attempt === maxRetries) {
           throw error;
         }
@@ -447,12 +465,44 @@ export default function LeadsPage() {
 
   // Polling para acompanhar progresso do job
   const startPolling = (jobId: string) => {
+    console.log('Iniciando polling para jobId:', jobId);
+    let pollCount = 0;
+    const maxPolls = 150; // 5 minutos máximo (150 * 2s = 300s)
+    
     pollingIntervalRef.current = setInterval(async () => {
+      pollCount++;
+      
+      if (pollCount > maxPolls) {
+        console.error('Timeout do polling atingido');
+        setImportStatus('error');
+        setImportResult('Timeout: A importação demorou mais que o esperado. Verifique o console para mais detalhes.');
+        toast({ 
+          title: 'Timeout da importação', 
+          description: 'A importação demorou mais que o esperado. Verifique se os dados foram importados.',
+          variant: 'destructive' 
+        });
+        setImporting(false);
+        stopPolling();
+        return;
+      }
+      
       try {
+        console.log(`Verificando status do job (${pollCount}/${maxPolls}):`, jobId);
         const response = await fetch(`/api/leads/import/batch/status/${jobId}`);
-        if (!response.ok) return;
+        if (!response.ok) {
+          console.error('Erro ao buscar status:', response.status, response.statusText);
+          if (response.status === 401) {
+            setImportStatus('error');
+            setImportResult('Erro de autenticação. Faça login novamente.');
+            toast({ title: 'Erro de autenticação', description: 'Faça login novamente.', variant: 'destructive' });
+            setImporting(false);
+            stopPolling();
+          }
+          return;
+        }
 
         const status = await response.json();
+        console.log('Status atual do job:', status);
         
         setProcessedRows(status.processedRows);
         setImportProgress((status.processedRows / status.totalRows) * 100);
@@ -462,6 +512,7 @@ export default function LeadsPage() {
         }
 
         if (status.status === 'completed') {
+          console.log('Importação concluída!');
           setImportStatus('completed');
           setImportResult(`Importação concluída: ${status.successCount} leads importados com sucesso.`);
           toast({ 
@@ -475,14 +526,21 @@ export default function LeadsPage() {
           // Invalidar cache de leads para recarregar a lista
           queryClient.invalidateQueries({ queryKey: ['leads'] });
         } else if (status.status === 'failed') {
+          console.log('Importação falhou!');
           setImportStatus('error');
-          setImportResult(`Erro na importação: ${status.error}`);
-          toast({ title: 'Erro na importação', description: status.error, variant: 'destructive' });
+          setImportResult(`Erro na importação: ${status.error || 'Erro desconhecido'}`);
+          toast({ title: 'Erro na importação', description: status.error || 'Erro desconhecido', variant: 'destructive' });
           setImporting(false);
           stopPolling();
         }
       } catch (error) {
         console.error('Erro ao verificar status:', error);
+        if (pollCount > 5) { // Só mostrar erro após algumas tentativas
+          setImportStatus('error');
+          setImportResult(`Erro de comunicação: ${error}`);
+          setImporting(false);
+          stopPolling();
+        }
       }
     }, 2000); // Poll a cada 2 segundos
   };
@@ -771,8 +829,37 @@ export default function LeadsPage() {
 
               {/* Resultado da Importação */}
               {importResult && (
-                <div className="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                  <p className="text-sm">{importResult}</p>
+                <div className={`mt-4 p-3 rounded-lg ${importStatus === 'error' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : 'bg-slate-50 dark:bg-slate-800'}`}>
+                  <p className={`text-sm ${importStatus === 'error' ? 'text-red-700 dark:text-red-300' : ''}`}>{importResult}</p>
+                  {importStatus === 'error' && (
+                    <div className="mt-3 flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => {
+                          setImportStatus('idle');
+                          setImportResult(null);
+                          setImportErrors([]);
+                          setImportProgress(0);
+                          setProcessedRows(0);
+                          setTotalRows(0);
+                          setImportJobId(null);
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = '';
+                          }
+                        }}
+                      >
+                        Tentar Novamente
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => console.log('Debug info:', { importJobId, importStatus, processedRows, totalRows })}
+                      >
+                        Debug Info
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 

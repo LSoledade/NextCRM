@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Criar job de importação
     const jobId = uuidv4();
+    console.log('Criando job com ID:', jobId);
     const job: ImportJob = {
       id: jobId,
       userId,
@@ -78,6 +79,8 @@ export async function POST(request: NextRequest) {
     };
 
     importJobs.set(jobId, job);
+    console.log('Job criado e armazenado:', job);
+    console.log('Total de jobs:', importJobs.size);
 
     // Em produção, salvar o job no banco de dados ou Redis
     // await supabase.from('import_jobs').insert(job);
