@@ -636,29 +636,26 @@ export default function LeadsPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-          <h1 className="text-3xl font-bold tracking-tight">Leads</h1>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
-              <Upload className="w-4 h-4 mr-2" />
-              Importar
-            </Button>
-            <Button variant="outline" size="sm" disabled={leads.length === 0} onClick={handleExportCSV}>
-              <Download className="w-4 h-4 mr-2" />
-              Exportar
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setSelectedLead(null);
-                setDialogOpen(true);
-              }}
-            >
-              <PlusCircle className="w-4 h-4 mr-2" />
-              Novo Lead
-            </Button>
-          </div>
+        {/* Actions Header */}
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Importar
+          </Button>
+          <Button variant="outline" size="sm" disabled={leads.length === 0} onClick={handleExportCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setSelectedLead(null);
+              setDialogOpen(true);
+            }}
+          >
+            <PlusCircle className="w-4 h-4 mr-2" />
+            Novo Lead
+          </Button>
         </div>
 
         {/* Filters */}

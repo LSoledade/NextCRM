@@ -231,9 +231,6 @@ export default function TasksPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-          <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
-        </div>
         <KanbanBoard
           tasks={tasks}
           userRole={userRole}

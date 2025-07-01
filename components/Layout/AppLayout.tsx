@@ -14,6 +14,7 @@ import {
   Menu as MenuIcon,
   ChevronLeft,
   ChevronRight,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +44,7 @@ const MOBILE_BREAKPOINT = 768;
 const menuItems = [
   { text: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { text: 'Leads', icon: Users, path: '/leads' },
+  { text: 'WhatsApp', icon: MessageSquare, path: '/whatsapp' },
   { text: 'Tarefas', icon: ClipboardList, path: '/tasks' },
   { text: 'Treinadores', icon: Dumbbell, path: '/trainers' },
   { text: 'Alunos', icon: GraduationCap, path: '/students' },
@@ -82,6 +84,30 @@ export default function AppLayout({ children }: AppLayoutProps) {
       .join('')
       .toUpperCase();
   }, [user?.user_metadata?.name, user?.email]);
+
+  // Get current page title based on pathname
+  const currentPageTitle = useMemo(() => {
+    const currentMenuItem = menuItems.find(item => item.path === pathname);
+    if (currentMenuItem) {
+      return currentMenuItem.text;
+    }
+    
+    // Handle dynamic routes or other pages
+    if (pathname.startsWith('/leads/')) {
+      return 'Detalhes do Lead';
+    }
+    if (pathname.startsWith('/students/')) {
+      return 'Detalhes do Aluno';
+    }
+    if (pathname.startsWith('/tasks/')) {
+      return 'Detalhes da Tarefa';
+    }
+    if (pathname === '/profile') {
+      return 'Perfil';
+    }
+    
+    return 'CRM Personal Trainer';
+  }, [pathname]);
 
   // Initialize component
   useEffect(() => {
@@ -316,7 +342,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </Sheet>
             
             <h1 className="text-lg font-semibold text-foreground">
-              CRM Personal Trainer
+              {currentPageTitle}
             </h1>
             
             <div className="flex items-center gap-2 dropdown-fix">
@@ -372,7 +398,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </span>
               </Button>
               <h1 className="text-xl font-semibold text-foreground">
-                CRM Personal Trainer
+                {currentPageTitle}
               </h1>
             </div>
             
