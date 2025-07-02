@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE_NAME || 'Leonardo';
+const INSTANCE_NAME = process.env.WHATSAPP_INSTANCE_NAME || process.env.EVOLUTION_INSTANCE_NAME || 'Leonardo';
 const WEBHOOK_URL = process.env.NEXT_PUBLIC_WEBHOOK_URL || 'https://next-crm-five-livid.vercel.app/api/whatsapp/webhook';
 
 if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
@@ -314,4 +314,141 @@ export async function ensureWebhookSetup(instanceName: string = INSTANCE_NAME): 
     console.error('❌ Erro ao verificar/configurar webhook:', error.message);
     return false;
   }
+}
+
+/**
+ * Conecta ao WhatsApp (alias para fetchQRCode)
+ */
+export async function connectToWhatsApp(instanceName: string = INSTANCE_NAME): Promise<QRCodeResponse> {
+  console.log(`🔗 Conectando ao WhatsApp para instância: ${instanceName}`);
+  return await fetchQRCode(instanceName);
+}
+
+/**
+ * Obtém o status da conexão (versão simplificada)
+ */
+export function getConnectionStatus(): string {
+  // Esta é uma função básica que retorna um status padrão
+  // Em uma implementação real, você pode querer armazenar o estado em memória ou cache
+  return 'checking';
+}
+
+/**
+ * Obtém o estado detalhado da conexão
+ */
+export async function getConnectionState(instanceName: string = INSTANCE_NAME): Promise<{
+  state: string;
+  status: InstanceStatus;
+}> {
+  try {
+    console.log(`🔍 Obtendo estado da conexão para: ${instanceName}`);
+    
+    const status = await checkInstanceStatus(instanceName);
+    
+    let state = 'disconnected';
+    if (status.exists && status.connected) {
+      state = 'connected';
+    } else if (status.exists && !status.connected) {
+      state = 'disconnected';
+    } else {
+      state = 'not_found';
+    }
+    
+    return {
+      state,
+      status
+    };
+  } catch (error: any) {
+    console.error('❌ Erro ao obter estado da conexão:', error.message);
+    return {
+      state: 'error',
+      status: {
+        exists: false,
+        connected: false,
+        status: 'error'
+      }
+    };
+  }
+}
+
+/**
+ * Processa eventos de webhook recebidos da Evolution API
+ */
+export async function processWebhook(webhookData: any): Promise<void> {
+  try {
+    console.log('📥 Processando webhook:', {
+      event: webhookData.event,
+      instance: webhookData.instance,
+      timestamp: new Date().toISOString()
+    });
+
+    // Processa diferentes tipos de eventos
+    switch (webhookData.event) {
+      case 'QRCODE_UPDATED':
+        console.log('📱 QR Code atualizado');
+        // Aqui você pode implementar lógica para atualizar o QR Code na interface
+        break;
+
+      case 'CONNECTION_UPDATE':
+        console.log('🔗 Status de conexão atualizado:', webhookData.data?.state);
+        // Aqui você pode implementar lógica para atualizar o status da conexão
+        break;
+
+      case 'MESSAGES_UPSERT':
+        console.log('📨 Nova mensagem recebida:', {
+          from: webhookData.data?.key?.remoteJid,
+          message: webhookData.data?.message
+        });
+        // Aqui você pode implementar lógica para processar mensagens recebidas
+        break;
+
+      case 'SEND_MESSAGE':
+        console.log('📤 Mensagem enviada confirmada');
+        // Aqui você pode implementar lógica para confirmar envio de mensagens
+        break;
+
+      case 'MESSAGES_UPDATE':
+        console.log('📝 Mensagem atualizada');
+        // Aqui você pode implementar lógica para atualizar status de mensagens
+        break;
+
+      case 'MESSAGES_DELETE':
+        console.log('🗑️ Mensagem deletada');
+        // Aqui você pode implementar lógica para processar mensagens deletadas
+        break;
+
+      case 'CONTACTS_UPSERT':
+        console.log('👥 Contatos atualizados');
+        // Aqui você pode implementar lógica para sincronizar contatos
+        break;
+
+      case 'CHATS_UPSERT':
+        console.log('💬 Chats atualizados');
+        // Aqui você pode implementar lógica para sincronizar chats
+        break;
+
+      case 'APPLICATION_STARTUP':
+        console.log('🚀 Aplicação iniciada');
+        // Aqui você pode implementar lógica para quando a instância inicia
+        break;
+
+      default:
+        console.log(`⚠️ Evento não processado: ${webhookData.event}`);
+        break;
+    }
+
+    // Log completo dos dados para debug (remova em produção se necessário)
+    console.log('📊 Dados completos do webhook:', JSON.stringify(webhookData, null, 2));
+
+  } catch (error: any) {
+    console.error('❌ Erro ao processar webhook:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Alias para checkInstanceStatus para compatibilidade
+ */
+export async function checkConnectionStatus(instanceName: string = INSTANCE_NAME): Promise<InstanceStatus> {
+  return await checkInstanceStatus(instanceName);
 }
