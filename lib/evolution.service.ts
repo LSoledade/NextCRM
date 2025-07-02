@@ -687,6 +687,80 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
       hasMedia: !!mediaUrl
     });
 
+    // Buscar lead pelo número de telefone (remetente)
+    const supabase = await (await import('@/utils/supabase/server')).createClient();
+    let leadId: string | null = null;
+    if (fromJid) {
+      // Extrair apenas o número (ex: 5511999999999@s.whatsapp.net)
+      const phoneMatch = fromJid.match(/^(\d{10,15})@/);
+      const phone = phoneMatch ? phoneMatch[1] : null;
+      if (phone) {
+        // Buscar lead pelo telefone
+        const { data: lead, error: leadError } = await supabase
+          .from('leads')
+          .select('id, phone')
+          .eq('phone', phone)
+          .single();
+        if (lead && !leadError) {
+          leadId = lead.id;
+        } else {
+          // Lead não encontrado, criar novo contato
+          // Buscar nome do contato no payload, se disponível
+          let contactName = null;
+          if (message.pushName) {
+            contactName = message.pushName;
+          } else if (message.notifyName) {
+            contactName = message.notifyName;
+          } else if (message.participant) {
+            contactName = message.participant;
+          }
+          if (!contactName && message.key?.participant) {
+            contactName = message.key.participant;
+          }
+          if (!contactName) {
+            contactName = `WhatsApp ${phone}`;
+          }
+          // Lead não encontrado, criar novo contato
+          const { data: newLead, error: newLeadError } = await supabase
+            .from('leads')
+            .insert({
+              phone,
+              name: contactName,
+              status: 'novo',
+              source: 'whatsapp',
+            })
+            .select('id')
+            .single();
+          if (newLead && !newLeadError) {
+            leadId = newLead.id;
+            console.log('Novo lead criado para contato desconhecido:', phone);
+          } else {
+            console.warn('Não foi possível criar lead para o telefone:', phone, newLeadError);
+          }
+        }
+      }
+    }
+
+    // Persistir mensagem recebida
+    const { error: dbError } = await supabase
+      .from('whatsapp_messages')
+      .insert({
+        lead_id: leadId,
+        sender_jid: fromJid,
+        message_content: messageContent,
+        message_type: messageType,
+        message_timestamp: timestamp,
+        message_id: messageId,
+        is_from_lead: true,
+        media_url: mediaUrl,
+        instance: instanceName
+      });
+    if (dbError) {
+      console.error('Erro ao salvar mensagem recebida no banco:', dbError);
+    } else {
+      console.log('✅ Mensagem recebida salva no banco com sucesso');
+    }
+
     // Aqui você pode salvar a mensagem no banco de dados
     // Exemplo: procurar o lead pelo número de telefone e salvar a mensagem
 
