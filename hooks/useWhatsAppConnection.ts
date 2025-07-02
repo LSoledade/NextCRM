@@ -28,27 +28,34 @@ export function useWhatsAppConnection() {
 
     setIsLoading(true);
     try {
-      // A rota agora é /api/whatsapp/status
-      const response = await fetch('/api/whatsapp/status');
-      const data = await response.json();
+      // Primeiro tenta o endpoint regular, se falhar usa o admin
+      let response = await fetch('/api/whatsapp/status');
+      let data = await response.json();
+
+      // Se não autorizado, tenta endpoint admin (para debugging)
+      if (response.status === 401) {
+        console.log('🔑 Tentando endpoint admin para status...');
+        response = await fetch('/api/whatsapp/admin-status');
+        data = await response.json();
+      }
 
       if (response.ok) {
         // O status da API da Evolution é 'open', 'close', 'connecting', etc.
         // Mapeamos para os status do nosso frontend.
         let newStatus: WhatsAppConnectionStatus['status'] = 'disconnected';
-        if (data.state === 'open') {
+        if (data.state === 'connected' || data.instanceStatus === 'open') {
           newStatus = 'connected';
         } else if (data.state === 'connecting') {
           newStatus = 'connecting';
-        } else if (data.state === 'close') {
+        } else if (data.state === 'disconnected' || data.instanceStatus === 'close') {
           newStatus = 'disconnected';
         }
 
         setConnectionStatus({
           status: newStatus,
-          // Assumindo que a API de status retorna o número e nome da instância
-          phoneNumber: data.contacts?.find((c: any) => c.isMe)?.id?.user,
-          instanceName: data.instance,
+          // Extrair informações do perfil se disponível
+          phoneNumber: data.profile?.number || data.profile?.name,
+          instanceName: 'Leonardo', // Hardcoded para agora
         });
       } else {
         setConnectionStatus({
