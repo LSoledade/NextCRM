@@ -585,7 +585,9 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
       messageId: message.key?.id,
       from: message.key?.remoteJid,
       timestamp: message.messageTimestamp,
-      messageType: message.message ? Object.keys(message.message)[0] : 'unknown'
+      messageType: message.message ? Object.keys(message.message)[0] : 'unknown',
+      pushName: message.pushName,
+      notifyName: message.notifyName
     });
 
     // Extrair informações da mensagem
@@ -606,11 +608,11 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
         messageContent = message.message.extendedTextMessage.text;
         messageType = 'text';
       } else if (message.message.imageMessage) {
-        messageContent = message.message.imageMessage.caption || '';
+        messageContent = message.message.imageMessage.caption || '[Imagem]';
         messageType = 'image';
         // mediaUrl seria processada aqui se necessário
       } else if (message.message.videoMessage) {
-        messageContent = message.message.videoMessage.caption || '';
+        messageContent = message.message.videoMessage.caption || '[Vídeo]';
         messageType = 'video';
       } else if (message.message.audioMessage) {
         messageContent = '[Áudio]';
@@ -618,13 +620,27 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
       } else if (message.message.documentMessage) {
         messageContent = message.message.documentMessage.fileName || '[Documento]';
         messageType = 'document';
+      } else if (message.message.stickerMessage) {
+        messageContent = '[Sticker]';
+        messageType = 'sticker';
+      } else {
+        // Tenta extrair conteúdo de outros tipos de mensagem
+        const messageKeys = Object.keys(message.message);
+        const firstKey = messageKeys[0];
+        if (firstKey && message.message[firstKey]) {
+          messageContent = message.message[firstKey].text || 
+                          message.message[firstKey].caption || 
+                          `[${firstKey.replace('Message', '')}]`;
+          messageType = firstKey.replace('Message', '');
+        }
       }
     }
 
     console.log('📝 Conteúdo da mensagem processado:', {
       type: messageType,
       content: messageContent.substring(0, 100) + (messageContent.length > 100 ? '...' : ''),
-      hasMedia: !!mediaUrl
+      hasMedia: !!mediaUrl,
+      contentLength: messageContent.length
     });
 
     // Usar cliente de serviço para operações de webhook (bypass RLS)
@@ -635,42 +651,77 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
     let userId: string | null = null;
     
     if (fromJid) {
-      // Extrair apenas o número (ex: 5511999999999@s.whatsapp.net)
-      const phoneMatch = fromJid.match(/^(\d{10,15})@/);
-      const phone = phoneMatch ? phoneMatch[1] : null;
+      console.log('🔍 Processando JID:', fromJid);
+      
+      // Extrair número de telefone de diferentes formatos
+      let phone: string | null = null;
+      
+      // Formato padrão: 5511999999999@s.whatsapp.net
+      let phoneMatch = fromJid.match(/^(\d{10,15})@/);
+      if (phoneMatch) {
+        phone = phoneMatch[1];
+      } else {
+        // Outros formatos possíveis
+        phoneMatch = fromJid.match(/(\d{10,15})/);
+        if (phoneMatch) {
+          phone = phoneMatch[1];
+        }
+      }
       
       if (phone) {
-        console.log('🔍 Buscando lead pelo telefone:', phone);
+        console.log('� Telefone extraído:', phone);
         
-        // Buscar lead pelo telefone
-        const { data: lead, error: leadError } = await supabase
-          .from('leads')
-          .select('id, phone, user_id')
-          .eq('phone', phone)
-          .single();
+        // Tentar diferentes variações do número de telefone
+        const phoneVariations = [
+          phone,
+          phone.replace(/^55/, ''), // Remove código do país (Brasil)
+          '55' + phone.replace(/^55/, ''), // Adiciona código do país se não tiver
+          phone.replace(/^(\d{2})(\d{8,9})$/, '$1$2'), // Formato básico
+          phone.replace(/^(\d{2})(\d{1})(\d{8})$/, '$1$2$3'), // Com nono dígito
+        ].filter((p, index, arr) => arr.indexOf(p) === index); // Remove duplicatas
+        
+        console.log('🔍 Tentando variações de telefone:', phoneVariations);
+        
+        // Buscar lead por qualquer uma das variações
+        for (const phoneVar of phoneVariations) {
+          console.log(`🔍 Buscando lead com telefone: ${phoneVar}`);
           
-        if (lead && !leadError) {
-          leadId = lead.id;
-          userId = lead.user_id;
-          console.log('✅ Lead encontrado:', { leadId, userId, phone });
-        } else {
+          const { data: lead, error: leadError } = await supabase
+            .from('leads')
+            .select('id, phone, user_id, name')
+            .eq('phone', phoneVar)
+            .maybeSingle();
+            
+          if (lead && !leadError) {
+            leadId = lead.id;
+            userId = lead.user_id;
+            console.log('✅ Lead encontrado:', { leadId, userId, phone: phoneVar, name: lead.name });
+            break;
+          } else if (leadError) {
+            console.log(`❌ Erro ao buscar lead com telefone ${phoneVar}:`, leadError);
+          }
+        }
+        
+        // Se não encontrou lead, criar um novo
+        if (!leadId) {
           console.log('📱 Lead não encontrado, criando novo...');
           
-          // Buscar nome do contato no payload, se disponível
+          // Extrair nome do contato do payload
           let contactName = null;
-          if (message.pushName) {
-            contactName = message.pushName;
-          } else if (message.notifyName) {
-            contactName = message.notifyName;
-          } else if (message.participant) {
-            contactName = message.participant;
-          }
-          if (!contactName && message.key?.participant) {
+          if (message.pushName && message.pushName.trim()) {
+            contactName = message.pushName.trim();
+          } else if (message.notifyName && message.notifyName.trim()) {
+            contactName = message.notifyName.trim();
+          } else if (message.key?.participant) {
             contactName = message.key.participant;
           }
-          if (!contactName) {
+          
+          // Se ainda não tem nome, usar um padrão
+          if (!contactName || contactName === phone) {
             contactName = `WhatsApp ${phone}`;
           }
+          
+          console.log('👤 Nome do contato:', contactName);
           
           // Buscar primeiro usuário ativo para associar o lead
           const { data: firstUser, error: userError } = await supabase
@@ -681,6 +732,12 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
             
           if (firstUser && !userError) {
             userId = firstUser.id;
+            
+            console.log('🆕 Criando novo lead:', {
+              phone,
+              name: contactName,
+              userId
+            });
             
             // Criar novo lead
             const { data: newLead, error: newLeadError } = await supabase
@@ -700,57 +757,73 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
               console.log('✅ Novo lead criado:', { leadId, userId, phone, name: contactName });
             } else {
               console.error('❌ Erro ao criar novo lead:', newLeadError);
+              console.error('📋 Dados usados para criação:', {
+                phone,
+                name: contactName,
+                userId
+              });
             }
           } else {
             console.error('❌ Não foi possível encontrar usuário para associar o lead:', userError);
           }
         }
+      } else {
+        console.error('❌ Não foi possível extrair telefone do JID:', fromJid);
       }
     }
 
     // Persistir mensagem recebida
-    if (leadId && userId) {
-      console.log('💾 Salvando mensagem no banco:', { leadId, userId, messageType, hasContent: !!messageContent });
+    if (leadId && userId && messageContent) {
+      console.log('💾 Salvando mensagem no banco:', { 
+        leadId, 
+        userId, 
+        messageType, 
+        contentLength: messageContent.length,
+        timestamp: timestamp.toISOString()
+      });
+      
+      const messageData = {
+        lead_id: leadId,
+        user_id: userId,
+        sender_jid: fromJid,
+        message_content: messageContent,
+        message_type: messageType,
+        message_timestamp: timestamp,
+        message_id: messageId,
+        is_from_lead: true,
+        media_url: mediaUrl
+      };
       
       const { error: dbError } = await supabase
         .from('whatsapp_messages')
-        .insert({
-          lead_id: leadId,
-          user_id: userId,
-          sender_jid: fromJid,
-          message_content: messageContent,
-          message_type: messageType,
-          message_timestamp: timestamp,
-          message_id: messageId,
-          is_from_lead: true,
-          media_url: mediaUrl
-        });
+        .insert(messageData);
         
       if (dbError) {
         console.error('❌ Erro ao salvar mensagem recebida no banco:', dbError);
-        console.error('📋 Dados que tentamos inserir:', {
-          lead_id: leadId,
-          user_id: userId,
-          sender_jid: fromJid,
-          message_type: messageType,
-          message_timestamp: timestamp,
-          message_id: messageId,
-          is_from_lead: true,
-          instance: instanceName,
-          content_length: messageContent?.length || 0
-        });
+        console.error('📋 Dados que tentamos inserir:', messageData);
       } else {
         console.log('✅ Mensagem recebida salva no banco com sucesso');
+        console.log('📊 Estatísticas da mensagem salva:', {
+          leadId,
+          messageType,
+          contentPreview: messageContent.substring(0, 50) + '...',
+          timestamp: timestamp.toISOString()
+        });
       }
     } else {
-      console.warn('⚠️ Não foi possível salvar mensagem - lead ou usuário não encontrado', { leadId, userId, fromJid });
+      console.warn('⚠️ Não foi possível salvar mensagem:', { 
+        leadId: !!leadId, 
+        userId: !!userId, 
+        hasContent: !!messageContent,
+        contentLength: messageContent?.length || 0,
+        fromJid 
+      });
     }
-
-    // Aqui você pode salvar a mensagem no banco de dados
-    // Exemplo: procurar o lead pelo número de telefone e salvar a mensagem
 
   } catch (error: any) {
     console.error('❌ Erro ao processar mensagem recebida:', error.message);
+    console.error('📋 Stack trace:', error.stack);
+    console.error('📋 Payload da mensagem:', JSON.stringify(message, null, 2));
   }
 }
 

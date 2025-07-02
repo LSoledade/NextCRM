@@ -55,15 +55,57 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
             setLoading(true);
             setError(null);
             try {
+                console.log('📞 Iniciando busca por conversas do WhatsApp...');
+                
                 // Get current user first
                 const { data: { user }, error: userError } = await supabase.auth.getUser();
                 
                 if (userError || !user) {
+                    console.error('❌ Usuário não autenticado:', userError);
                     setError('Usuário não autenticado');
                     return;
                 }
 
-                // Query simplificada: buscar todas as mensagens e processar no frontend
+                console.log('✅ Usuário autenticado:', user.id);
+
+                // Primeiro, tentar usar a função SQL otimizada
+                console.log('🔍 Tentando usar função get_whatsapp_conversations...');
+                const { data: conversationsFromFunction, error: functionError } = await supabase
+                    .rpc('get_whatsapp_conversations', { p_user_id: user.id });
+
+                if (conversationsFromFunction && !functionError && conversationsFromFunction.length > 0) {
+                    console.log('✅ Conversas obtidas via função SQL:', conversationsFromFunction.length);
+                    
+                    const chatListData: ChatListItem[] = conversationsFromFunction.map((conv: any) => ({
+                        lead: {
+                            id: conv.lead_id,
+                            name: conv.lead_name,
+                            phone: conv.lead_phone,
+                            email: conv.lead_email,
+                            status: conv.lead_status,
+                            user_id: conv.user_id,
+                            created_at: conv.lead_created_at,
+                            updated_at: conv.lead_updated_at,
+                            company: conv.lead_company,
+                            source: conv.lead_source
+                        },
+                        last_message: conv.last_message_content || 'Mensagem sem conteúdo',
+                        last_message_timestamp: conv.last_message_timestamp,
+                        is_from_lead: conv.last_message_is_from_lead,
+                        unread_count: conv.unread_count || 0
+                    }));
+
+                    setChatList(chatListData);
+                    console.log('✅ Lista de conversas atualizada via função SQL');
+                    return;
+                }
+
+                console.log('⚠️ Função SQL não disponível ou sem resultados, usando query manual...');
+                if (functionError) {
+                    console.error('Erro na função SQL:', functionError);
+                }
+
+                // Fallback: Query manual
                 const { data: allMessages, error: messagesError } = await supabase
                     .from('whatsapp_messages')
                     .select(`
@@ -88,10 +130,12 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                     .order('message_timestamp', { ascending: false });
 
                 if (messagesError) {
-                    console.error('Erro ao buscar conversas:', messagesError);
+                    console.error('❌ Erro ao buscar conversas (query manual):', messagesError);
                     setError('Erro ao carregar conversas');
                     return;
                 }
+
+                console.log('📊 Mensagens encontradas (query manual):', allMessages?.length || 0);
 
                 // Agrupar mensagens por lead_id e pegar a última mensagem de cada
                 const leadMessagesMap = new Map<string, {
@@ -120,8 +164,10 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                     .sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
 
                 setChatList(chatListData);
+                console.log('✅ Lista de conversas atualizada via query manual:', chatListData.length);
+                
             } catch (error) {
-                console.error('Erro ao buscar lista de conversas:', error);
+                console.error('❌ Erro ao buscar lista de conversas:', error);
                 setError('Erro de conexão');
             } finally {
                 setLoading(false);
@@ -129,6 +175,33 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
         };
 
         fetchChatList();
+
+        // Configurar subscription para atualizações em tempo real
+        console.log('🔔 Configurando subscription Realtime para whatsapp_messages...');
+        
+        const subscription = supabase
+            .channel('whatsapp_messages_changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'whatsapp_messages'
+                },
+                (payload) => {
+                    console.log('🔔 Mensagem WhatsApp atualizada via Realtime:', payload);
+                    // Recarregar lista quando houver mudanças
+                    fetchChatList();
+                }
+            )
+            .subscribe((status) => {
+                console.log('📡 Status da subscription Realtime:', status);
+            });
+
+        return () => {
+            console.log('🔌 Desconectando subscription Realtime...');
+            subscription.unsubscribe();
+        };
     }, []);
 
     const filteredChats = chatList.filter(chat =>
