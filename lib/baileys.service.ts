@@ -100,7 +100,34 @@ const createRedisAuthState = async (): Promise<{ state: AuthenticationState, sav
     }
   };
 
-  const creds: AuthenticationCreds = (await readData('creds')) || initAuthCreds();
+  // Função para limpar auth state corrompido
+  const clearAuthState = async (): Promise<void> => {
+    try {
+      console.log('[Baileys] Clearing corrupted auth state...');
+      // Tentar limpar todas as chaves relacionadas ao auth state
+      const keysToTry = ['creds', 'pre-key', 'session', 'sender-key', 'app-state-sync-key'];
+      for (const keyType of keysToTry) {
+        try {
+          await redisService.del(`${BIND_KEY}:${keyType}`);
+        } catch (error) {
+          // Ignorar erros individuais
+        }
+      }
+      console.log('[Baileys] Auth state cleared successfully');
+    } catch (error) {
+      console.error('[Baileys] Error clearing auth state:', error);
+    }
+  };
+
+  let creds: AuthenticationCreds;
+  
+  try {
+    creds = (await readData('creds')) || initAuthCreds();
+  } catch (error) {
+    console.warn('[Baileys] Corrupted credentials detected, clearing auth state...');
+    await clearAuthState();
+    creds = initAuthCreds();
+  }
   
   // Verificar se é primeira conexão (sem credenciais válidas)
   const isFirstRun = !creds.registered;
@@ -194,7 +221,15 @@ const createFileAuthState = async (): Promise<{ state: AuthenticationState, save
 let socket: WASocket | null = null;
 let qrCode: string | null = null;
 let connectionAttempts = 0;
+let isConnecting = false; // Flag para evitar múltiplas conexões simultâneas
+let reconnectTimeout: NodeJS.Timeout | null = null; // Para controlar timeouts de reconexão
+let qrTimeoutHandler: NodeJS.Timeout | null = null; // Para timeout do QR Code
+let lastConnectionAttempt = 0; // Timestamp da última tentativa
+let cooldownPeriod = 0; // Período de cooldown atual em ms
 const MAX_CONNECTION_ATTEMPTS = 3;
+const QR_TIMEOUT_MS = 40000; // 40 segundos timeout para QR Code
+const MIN_COOLDOWN_MS = 30000; // 30 segundos mínimo entre tentativas
+const MAX_COOLDOWN_MS = 300000; // 5 minutos máximo
 const logger = pino({ level: 'silent' });
 
 // --- FUNÇÕES DE UPLOAD DE MÍDIA ---
@@ -226,23 +261,62 @@ async function uploadMediaToSupabase(buffer: Buffer, mimeType: string, leadId: s
 
 // --- FUNÇÃO PRINCIPAL DE CONEXÃO ---
 export async function connectToWhatsApp(): Promise<WASocket> {
+  // Verificar cooldown antes de tentar conectar
+  const cooldownRemaining = getCooldownRemaining();
+  if (cooldownRemaining > 0) {
+    const secondsRemaining = Math.ceil(cooldownRemaining / 1000);
+    const message = `Aguarde ${secondsRemaining}s antes de tentar novamente. Muitas tentativas podem bloquear o WhatsApp.`;
+    console.log(`[Baileys] ${message}`);
+    throw new Error(message);
+  }
+
+  // Evitar múltiplas conexões simultâneas
+  if (isConnecting) {
+    console.log('[Baileys] Conexão já em andamento, aguardando...');
+    // Aguardar até que a conexão atual termine
+    let attempts = 0;
+    while (isConnecting && attempts < 30) { // máximo 30 segundos
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+    }
+  }
+  
   if (socket && socket.user) {
     console.log('[Baileys] Socket já conectado');
     return socket;
   }
+
+  // Marcar tentativa de conexão
+  lastConnectionAttempt = Date.now();
+  calculateCooldown(); // Calcular próximo cooldown
 
   // Verificar se é instância primária
   if (process.env.PRIMARY_INSTANCE !== 'true') {
     throw new Error('[Baileys] Apenas a instância primária pode conectar ao WhatsApp');
   }
 
-  connectionAttempts++;
-  if (connectionAttempts > MAX_CONNECTION_ATTEMPTS) {
-    throw new Error('[Baileys] Número máximo de tentativas de conexão excedido');
-  }
-
+  // Marcar como conectando
+  isConnecting = true;
+  
   try {
-    // Inicializar Redis (com fallback se não disponível)
+    connectionAttempts++;
+    if (connectionAttempts > MAX_CONNECTION_ATTEMPTS) {
+      throw new Error('[Baileys] Número máximo de tentativas de conexão excedido');
+    }
+
+    console.log(`[Baileys] Iniciando conexão (tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`);
+
+    // Limpar socket anterior se existir
+    if (socket) {
+      try {
+        socket.end(undefined);
+      } catch (error) {
+        console.warn('[Baileys] Erro ao fechar socket anterior:', error);
+      }
+      socket = null;
+    }
+
+    // Inicializar Redis (with fallback se não disponível)
     const redisAvailable = await isRedisAvailable();
     let authState;
     
@@ -266,63 +340,169 @@ export async function connectToWhatsApp(): Promise<WASocket> {
         keys: makeCacheableSignalKeyStore(state.keys, logger) 
       },
       logger,
-      browser: ['FavaleTrainer CRM', 'Chrome', '1.0.0'],
+      // Configuração otimizada para melhor compatibilidade
+      browser: ['Chrome', 'Desktop', '4.0.0'],
       generateHighQualityLinkPreview: true,
       syncFullHistory: false,
-      markOnlineOnConnect: true,
-      defaultQueryTimeoutMs: 60000, // Aumentar timeout
-      connectTimeoutMs: 60000, // Timeout de conexão
-      qrTimeout: 40000, // Timeout para QR code
+      markOnlineOnConnect: false,
+      defaultQueryTimeoutMs: 60000,
+      connectTimeoutMs: 60000,
+      qrTimeout: 40000, // 40 segundos para evitar QR expirado
+      // Configurações para melhor estabilidade
+      retryRequestDelayMs: 250,
+      maxMsgRetryCount: 5,
+      printQRInTerminal: false,
+      emitOwnEvents: false,
+      // Configurações específicas para conexão
+      mobile: false,
+      getMessage: async (key) => {
+        return undefined;
+      }
     });
 
     // --- EVENT HANDLERS ---
     socket.ev.on('connection.update', async (update) => {
-      const { connection, lastDisconnect, qr } = update;
-      qrCode = qr ?? null;
-
+      const { connection, lastDisconnect, qr, isNewLogin } = update;
+      
       console.log('[Baileys] Connection update:', { 
         connection, 
         qr: !!qr, 
+        isNewLogin,
         lastDisconnect: lastDisconnect ? {
           error: lastDisconnect.error?.message,
           statusCode: (lastDisconnect.error as Boom)?.output?.statusCode
         } : null
       });
 
+      // Atualizar QR Code
       if (qr) {
+        qrCode = qr;
         console.log('[Baileys] QR Code gerado - tamanho:', qr.length);
+        console.log('[Baileys] QR Code (primeiros 50 chars):', qr.substring(0, 50) + '...');
         await updateConnectionStatus('qr_ready', qr, null);
+        
+        // Limpar timeout anterior se existir
+        if (qrTimeoutHandler) {
+          clearTimeout(qrTimeoutHandler);
+        }
+        
+        // Configurar timeout para o QR Code
+        qrTimeoutHandler = setTimeout(async () => {
+          console.log('[Baileys] QR Code timeout - gerando novo...');
+          // Não resetar auth state, apenas gerar novo QR
+          qrCode = null;
+          
+          // Tentar reconectar se ainda dentro do limite
+          if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
+            setTimeout(() => {
+              connectToWhatsApp().catch(error => {
+                console.error('[Baileys] Erro na reconexão após QR timeout:', error);
+                isConnecting = false;
+              });
+            }, 1000);
+          } else {
+            isConnecting = false;
+            await updateConnectionStatus('error', null, null, 'QR Code expirado - tente novamente');
+          }
+        }, QR_TIMEOUT_MS);
       }
 
       if (connection === 'close') {
+        isConnecting = false; // Liberar flag de conexão
         const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
         
         console.log('[Baileys] Conexão fechada. Status code:', statusCode, 'Should reconnect:', shouldReconnect);
         
-        if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
+        // Detectar se QR Code foi rejeitado ou auth state está corrompido
+        // Tratar erros específicos do WhatsApp
+        if (statusCode === DisconnectReason.badSession || 
+            statusCode === DisconnectReason.multideviceMismatch ||
+            lastDisconnect?.error?.message?.includes('Invalid auth state') ||
+            lastDisconnect?.error?.message?.includes('QR rejected') ||
+            lastDisconnect?.error?.message?.includes('QR code timeout') ||
+            lastDisconnect?.error?.message?.includes('Não foi possível conectar') ||
+            lastDisconnect?.error?.message?.includes('Connection failed')) {
+          
+          console.log('[Baileys] Auth state corrompido ou QR rejeitado, resetando...');
+          await resetAuthState();
+          
+          // Limpar timeout anterior se existir
+          if (reconnectTimeout) {
+            clearTimeout(reconnectTimeout);
+          }
+          
+          // Aguardar um pouco antes de tentar reconectar
+          reconnectTimeout = setTimeout(() => {
+            if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
+              console.log('[Baileys] Tentando reconectar com auth state limpo...');
+              connectToWhatsApp().catch(error => {
+                console.error('[Baileys] Erro na reconexão:', error);
+                isConnecting = false; // Garantir que flag seja liberada
+              });
+            } else {
+              isConnecting = false; // Liberar flag se não vai reconectar
+            }
+          }, 3000);
+          
+        } else if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
           console.log('[Baileys] Tentando reconectar...');
-          setTimeout(() => connectToWhatsApp(), 5000); // Aguardar 5s antes de reconectar
+          
+          // Limpar timeout anterior se existir
+          if (reconnectTimeout) {
+            clearTimeout(reconnectTimeout);
+          }
+          
+          reconnectTimeout = setTimeout(() => {
+            connectToWhatsApp().catch(error => {
+              console.error('[Baileys] Erro na reconexão:', error);
+              isConnecting = false; // Garantir que flag seja liberada
+            });
+          }, 5000); // Aguardar 5s antes de reconectar
         } else {
           socket = null;
           qrCode = null;
           connectionAttempts = 0;
+          isConnecting = false; // Garantir que flag seja liberada
           console.log('[Baileys] Desconectado permanentemente ou máximo de tentativas atingido');
+          
+          // Limpar timeouts se existirem
+          if (reconnectTimeout) {
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = null;
+          }
+          if (qrTimeoutHandler) {
+            clearTimeout(qrTimeoutHandler);
+            qrTimeoutHandler = null;
+          }
           
           // Atualizar status no Supabase
           await updateConnectionStatus('disconnected', null, null, 
             statusCode === DisconnectReason.loggedOut ? 'Desconectado pelo usuário' : 'Conexão perdida');
         }
       } else if (connection === 'open') {
+        isConnecting = false; // Liberar flag de conexão
         qrCode = null;
         connectionAttempts = 0; // Reset counter on successful connection
-        console.log('[Baileys] Conexão estabelecida com sucesso!');
+        resetCooldown(); // Resetar cooldown em caso de sucesso
+        
+        // Limpar timeout do QR Code se existir
+        if (qrTimeoutHandler) {
+          clearTimeout(qrTimeoutHandler);
+          qrTimeoutHandler = null;
+        }
+        
+        console.log('[Baileys] Conexão estabelecida com sucesso! Cooldown resetado.');
         
         // Atualizar status no Supabase
         await updateConnectionStatus('connected', null, socket?.user);
       } else if (connection === 'connecting') {
         console.log('[Baileys] Iniciando conexão...');
         await updateConnectionStatus('connecting', null, null);
+      } else if (connection === 'closed') {
+        // Liberar flag mesmo quando conexão é fechada sem passar por 'close'
+        isConnecting = false;
+        console.log('[Baileys] Conexão foi fechada');
       }
     });
 
@@ -345,9 +525,21 @@ export async function connectToWhatsApp(): Promise<WASocket> {
     return socket;
 
   } catch (error) {
+    isConnecting = false; // Liberar flag de conexão em caso de erro
     console.error('[Baileys] Erro ao conectar:', error);
     socket = null;
     qrCode = null;
+    
+    // Limpar timeouts se existirem
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
+    if (qrTimeoutHandler) {
+      clearTimeout(qrTimeoutHandler);
+      qrTimeoutHandler = null;
+    }
+    
     throw error;
   }
 }
@@ -578,6 +770,101 @@ if (process.env.NODE_ENV === 'production' || process.env.PRIMARY_INSTANCE === 't
       }, 30000);
     }
   }, 5000);
+}
+
+// Função para resetar auth state (útil quando QR Code é rejeitado)
+export async function resetAuthState(): Promise<void> {
+  try {
+    console.log('[Baileys] Resetting auth state...');
+    
+    // Liberar flag de conexão
+    isConnecting = false;
+    
+    // Limpar timeout de reconexão se existir
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
+    
+    // Limpar timeout do QR Code se existir
+    if (qrTimeoutHandler) {
+      clearTimeout(qrTimeoutHandler);
+      qrTimeoutHandler = null;
+    }
+    
+    // Tentar fazer logout explícito para liberar slot de dispositivo
+    if (socket) {
+      try {
+        console.log('[Baileys] Tentando logout explícito para liberar slot do dispositivo...');
+        await socket.logout();
+        console.log('[Baileys] Logout realizado com sucesso');
+        // Aguardar um pouco para o logout ser processado
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (logoutError) {
+        console.warn('[Baileys] Erro no logout (normal se já desconectado):', logoutError);
+      }
+      
+      try {
+        socket.end(undefined);
+      } catch (error) {
+        console.warn('[Baileys] Erro ao fechar socket durante reset:', error);
+      }
+    }
+    
+    const redisService = await getRedisService();
+    if (redisService) {
+      const BIND_KEY = 'baileys-auth-creds';
+      const keysToTry = ['creds', 'pre-key', 'session', 'sender-key', 'app-state-sync-key'];
+      
+      for (const keyType of keysToTry) {
+        try {
+          await redisService.del(`${BIND_KEY}:${keyType}`);
+        } catch (error) {
+          console.warn(`[Baileys] Could not delete ${keyType}:`, error);
+        }
+      }
+    }
+    
+    // Reset variáveis globais
+    socket = null;
+    qrCode = null;
+    connectionAttempts = 0;
+    
+    console.log('[Baileys] Auth state reset completed');
+  } catch (error) {
+    isConnecting = false; // Garantir que flag seja sempre liberada
+    console.error('[Baileys] Error resetting auth state:', error);
+    throw error;
+  }
+}
+
+// --- FUNÇÕES DE COOLDOWN ---
+function calculateCooldown(): number {
+  // Cooldown progressivo: começa em 30s, dobra a cada tentativa até 5min máximo
+  if (cooldownPeriod === 0) {
+    cooldownPeriod = MIN_COOLDOWN_MS;
+  } else {
+    cooldownPeriod = Math.min(cooldownPeriod * 2, MAX_COOLDOWN_MS);
+  }
+  return cooldownPeriod;
+}
+
+function getCooldownRemaining(): number {
+  if (lastConnectionAttempt === 0) return 0;
+  
+  const timeSinceLastAttempt = Date.now() - lastConnectionAttempt;
+  const requiredCooldown = cooldownPeriod || MIN_COOLDOWN_MS;
+  
+  return Math.max(0, requiredCooldown - timeSinceLastAttempt);
+}
+
+function resetCooldown(): void {
+  cooldownPeriod = 0;
+  lastConnectionAttempt = 0;
+}
+
+function isInCooldown(): boolean {
+  return getCooldownRemaining() > 0;
 }
 
 export { updateConnectionStatus };

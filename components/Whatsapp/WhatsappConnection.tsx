@@ -24,18 +24,19 @@ import Image from 'next/image';
 export default function WhatsappConnection() {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const { toast } = useToast();
-  const { connectionStatus, isLoading, disconnect, reconnect, refreshStatus } = useWhatsAppConnection();
+  const { connectionStatus, isLoading, disconnect, reconnect, refreshStatus, resetAuthState } = useWhatsAppConnection();
 
   // Gerar QR Code quando receber o código
   useEffect(() => {
     if (connectionStatus.qrCode) {
       QRCodeLib.toDataURL(connectionStatus.qrCode, {
-        width: 256,
-        margin: 2,
+        width: 300, // Aumentar tamanho
+        margin: 4, // Aumentar margem
         color: {
           dark: '#000000',
           light: '#FFFFFF'
-        }
+        },
+        errorCorrectionLevel: 'M' // Nível de correção de erro médio
       }).then(setQrCodeDataUrl)
         .catch(error => console.error('Erro ao gerar QR Code:', error));
     } else {
@@ -56,6 +57,28 @@ export default function WhatsappConnection() {
   useEffect(() => {
     handleConnectionSuccess();
   }, [handleConnectionSuccess]);
+
+  // Função para resetar auth state
+  const handleReset = async () => {
+    const result = await resetAuthState();
+    
+    if (result.success) {
+      toast({ 
+        title: 'Auth state resetado', 
+        description: result.message || 'Gerando novo QR Code...' 
+      });
+      // Aguardar um pouco e então refrescar status
+      setTimeout(() => {
+        refreshStatus();
+      }, 2000);
+    } else {
+      toast({ 
+        title: 'Erro ao resetar', 
+        description: result.error,
+        variant: 'destructive'
+      });
+    }
+  };
 
   // Função para desconectar
   const handleDisconnect = async () => {
@@ -123,15 +146,32 @@ export default function WhatsappConnection() {
         {/* QR Code */}
         {connectionStatus.status === 'qr_ready' && qrCodeDataUrl && (
           <div className="text-center space-y-3">
-            <div className="bg-white p-4 rounded-lg inline-block">
+            <div className="bg-white p-6 rounded-lg inline-block border">
               <Image 
                 src={qrCodeDataUrl} 
                 alt="QR Code WhatsApp" 
-                width={192}
-                height={192}
-                className="mx-auto"
+                width={240}
+                height={240}
+                className="mx-auto cursor-pointer"
                 unoptimized
+                priority
+                onClick={() => {
+                  // Abrir QR Code em nova janela para melhor compatibilidade
+                  const newWindow = window.open('', '_blank', 'width=400,height=400');
+                  if (newWindow) {
+                    newWindow.document.write(`
+                      <html>
+                        <head><title>QR Code WhatsApp</title></head>
+                        <body style="margin:0;padding:20px;display:flex;justify-content:center;align-items:center;height:100vh;background:#f5f5f5;">
+                          <img src="${qrCodeDataUrl}" alt="QR Code WhatsApp" style="max-width:100%;max-height:100%;" />
+                        </body>
+                      </html>
+                    `);
+                    newWindow.document.close();
+                  }
+                }}
               />
+              <p className="text-xs text-gray-500 mt-2">Clique para ampliar</p>
             </div>
             <p className="text-sm text-muted-foreground">
               Escaneie este QR Code com seu WhatsApp
@@ -139,10 +179,16 @@ export default function WhatsappConnection() {
             <Alert>
               <Smartphone className="h-4 w-4" />
               <AlertDescription>
+                <strong>📱 Como conectar:</strong><br/>
                 1. Abra o WhatsApp no seu celular<br/>
-                2. Vá em Configurações {'>'} Aparelhos conectados<br/>
-                3. Toque em &quot;Conectar um aparelho&quot;<br/>
-                4. Escaneie o QR Code acima
+                2. Toque nos 3 pontos (⋮) no canto superior direito<br/>
+                3. Selecione &quot;Aparelhos conectados&quot;<br/>
+                4. Toque em &quot;Conectar um aparelho&quot;<br/>
+                5. Aponte a câmera para o QR Code acima<br/><br/>
+                <strong>⚠️ Problemas?</strong><br/>
+                • Tente usar Chrome ou Firefox<br/>
+                • Certifique-se que o QR Code está bem iluminado<br/>
+                • Se aparecer &quot;Não foi possível conectar&quot;, clique em &quot;Novo QR Code&quot;
               </AlertDescription>
             </Alert>
           </div>
@@ -208,17 +254,6 @@ export default function WhatsappConnection() {
 
         {/* Botões de ação */}
         <div className="flex gap-2 pt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refreshStatus}
-            disabled={isLoading}
-            className="flex-1"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
-
           {connectionStatus.status === 'connected' ? (
             <Button
               variant="destructive"
@@ -230,6 +265,17 @@ export default function WhatsappConnection() {
               <LogOut className="w-4 h-4 mr-2" />
               Desconectar
             </Button>
+          ) : connectionStatus.status === 'qr_ready' ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReset}
+              disabled={isLoading}
+              className="flex-1"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Novo QR Code
+            </Button>
           ) : (
             <Button
               variant="default"
@@ -239,7 +285,7 @@ export default function WhatsappConnection() {
               className="flex-1"
             >
               <Wifi className="w-4 h-4 mr-2" />
-              Conectar
+              {connectionStatus.status === 'connecting' ? 'Conectando...' : 'Conectar'}
             </Button>
           )}
         </div>

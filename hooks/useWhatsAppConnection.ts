@@ -299,11 +299,41 @@ export function useWhatsAppConnection() {
     await fetchCurrentStatus();
   }, [fetchCurrentStatus]);
 
+  // Função para resetar auth state - memoizada
+  const resetAuthState = useCallback(async () => {
+    if (!user?.id) return { success: false, error: 'Usuário não autenticado' };
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/whatsapp/connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset' })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        return { success: data.success, message: data.message };
+      } else {
+        return { success: false, error: data.error };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: 'Erro de comunicação com o servidor' 
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.id]);
+
   return {
     connectionStatus,
     isLoading,
     disconnect,
     reconnect,
-    refreshStatus
+    refreshStatus,
+    resetAuthState
   };
 }

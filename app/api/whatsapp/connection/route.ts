@@ -1,6 +1,6 @@
 // app/api/whatsapp/connection/route.ts - VERSÃO OTIMIZADA
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToWhatsApp, getQRCode, getSocket, initializeSupabaseClient } from '@/lib/baileys.service';
+import { connectToWhatsApp, getQRCode, getSocket, initializeSupabaseClient, resetAuthState } from '@/lib/baileys.service';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@/utils/supabase/server';
 
@@ -148,6 +148,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ação não especificada' }, { status: 400 });
     }
 
+    if (action === 'reset') {
+      // Reset auth state quando QR Code é rejeitado
+      try {
+        await resetAuthState();
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Auth state resetado. Tente gerar um novo QR Code.' 
+        });
+      } catch (error: any) {
+        console.error('Erro ao resetar auth state:', error);
+        return NextResponse.json({ 
+          success: false, 
+          error: error.message 
+        }, { status: 500 });
+      }
+    }
+
     if (action === 'disconnect') {
       try {
         const socket = getSocket();
@@ -245,12 +262,14 @@ async function updateConnectionStatus(
     const supabaseServer = await createClient();
     
     // Usar a função upsert segura que evitará conflitos de chave duplicada
-    const { data, error } = await supabaseServer.rpc('upsert_whatsapp_connection', {
+    const { data, error } = await supabaseServer.rpc('upsert_whatsapp_connection_v2', {
       p_user_id: userId,
       p_status: status,
       p_qr_code: qrCode,
       p_whatsapp_user: whatsappUser,
       p_phone_number: whatsappUser?.id || null,
+      p_connected_at: status === 'connected' ? new Date().toISOString() : null,
+      p_disconnected_at: status === 'disconnected' ? new Date().toISOString() : null,
       p_error_message: errorMessage
     });
 
