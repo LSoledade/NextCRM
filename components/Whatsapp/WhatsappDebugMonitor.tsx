@@ -232,6 +232,29 @@ export default function WhatsappDebugMonitor() {
     }
   };
 
+  const reconnectInstance = async () => {
+    try {
+      addLog('info', 'Reconectando instância WhatsApp...');
+      
+      const response = await fetch('/api/whatsapp/reconnect', {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        addLog('success', 'Tentativa de reconexão iniciada', result);
+        
+        if (result.instructions) {
+          addLog('warning', result.instructions);
+        }
+      } else {
+        addLog('error', `Erro ao reconectar: ${response.status}`);
+      }
+    } catch (error) {
+      addLog('error', 'Erro ao reconectar instância', error);
+    }
+  };
+
   useEffect(() => {
     fetchRecentMessages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -306,6 +329,10 @@ export default function WhatsappDebugMonitor() {
             
             <Button onClick={setupWebhook} variant="outline">
               Reconfigurar Webhook
+            </Button>
+            
+            <Button onClick={reconnectInstance} variant="default">
+              Reconectar WhatsApp
             </Button>
             
             <Button onClick={clearLogs} variant="outline">
