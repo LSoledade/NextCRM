@@ -7,7 +7,9 @@ import { Database } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Send, Paperclip, FileText, AlertCircle } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Send, Paperclip, FileText, AlertCircle, Phone, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '../ui/skeleton';
 
@@ -18,15 +20,16 @@ interface WhatsappChatProps {
 
 const MediaMessage = ({ msg }: { msg: Message }) => {
   if (!msg.media_url) return null;
-  const commonClasses = "rounded-lg max-w-full h-auto";
+  const commonClasses = "rounded-lg max-w-full h-auto shadow-sm";
 
   switch (msg.message_type) {
     case 'image': return <Image src={msg.media_url} alt="Imagem enviada" className={commonClasses} width={300} height={200} />;
     case 'video': return <video src={msg.media_url} controls className={commonClasses} />;
     case 'audio': return <audio src={msg.media_url} controls className="w-full" />;
     case 'document': return (
-      <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">
-        <FileText className="w-6 h-6" /> <span>{msg.message_content || 'Documento'}</span>
+      <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors">
+        <FileText className="w-5 h-5 text-blue-600" /> 
+        <span className="text-sm font-medium">{msg.message_content || 'Documento'}</span>
       </a>
     );
     default: return null;
@@ -55,13 +58,21 @@ const ConnectionStatus = () => {
   if (status.type === 'connected') return null;
 
   return (
-    <div className="p-4 mb-4 text-center border-l-4 border-yellow-500 bg-yellow-50">
-      <div className="flex items-center justify-center">
-        <AlertCircle className="w-5 h-5 mr-2 text-yellow-700" />
-        <p className="font-semibold text-yellow-800">WhatsApp Desconectado</p>
+    <div className="p-4 mb-4 border border-yellow-200 rounded-lg bg-yellow-50 dark:bg-yellow-950/20">
+      <div className="flex items-center justify-center mb-2">
+        <AlertCircle className="w-5 h-5 mr-2 text-yellow-600" />
+        <p className="font-medium text-yellow-800 dark:text-yellow-200">WhatsApp Desconectado</p>
       </div>
-      {status.qr && <Image src={status.qr} alt="Escaneie para conectar" className="mx-auto mt-2" width={256} height={256} />}
-      {!status.qr && status.type !== 'loading' && <p className="mt-2 text-sm text-yellow-700">Aguardando conexão... Verifique o terminal do servidor se o QR Code não aparecer aqui.</p>}
+      {status.qr && (
+        <div className="flex justify-center">
+          <Image src={status.qr} alt="Escaneie para conectar" className="border rounded-lg" width={200} height={200} />
+        </div>
+      )}
+      {!status.qr && status.type !== 'loading' && (
+        <p className="text-sm text-yellow-700 dark:text-yellow-300 text-center">
+          Aguardando conexão... Verifique o terminal do servidor se o QR Code não aparecer.
+        </p>
+      )}
     </div>
   );
 };
@@ -117,31 +128,141 @@ export default function WhatsappChat({ lead }: WhatsappChatProps) {
   };
 
   return (
-    <Card>
-      <CardHeader><CardTitle>Conversa do WhatsApp</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
-        <ConnectionStatus />
-        <div className="h-[50vh] overflow-y-auto p-4 border rounded-md flex flex-col gap-3 bg-muted/50">
-          {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className={`h-12 w-${i % 2 === 0 ? '3/5' : '1/2'} ${i % 2 === 0 ? 'self-start' : 'self-end'}`} />) :
-            messages.map((msg) => (
-              <div key={msg.id} className={cn('p-2 rounded-lg max-w-[80%] w-fit', msg.is_from_lead ? 'bg-background self-start' : 'bg-primary text-primary-foreground self-end')}>
-                <MediaMessage msg={msg} />
-                {msg.message_content && <p className="text-sm whitespace-pre-wrap mt-1">{msg.message_content}</p>}
-                <p className="text-xs opacity-70 mt-1 text-right">{new Date(msg.message_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-            ))
-          }
-          <div ref={messagesEndRef} />
+    <div className="flex flex-col h-full bg-background">
+      {/* Header do chat */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-card">
+        <Avatar className="h-10 w-10">
+          <AvatarImage src={undefined} alt={lead.name || 'L'} />
+          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
+            {lead.name?.charAt(0).toUpperCase() || 'L'}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium truncate">{lead.name || 'Sem nome'}</div>
+          <div className="text-sm text-muted-foreground flex items-center gap-1">
+            <Phone className="w-3 h-3" />
+            {lead.phone || 'Sem telefone'}
+          </div>
         </div>
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          <Button type="button" size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={sending}><Paperclip className="h-5 w-5" /></Button>
-          <input type="file" ref={fileInputRef} onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" />
-          <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={file ? file.name : "Digite uma mensagem..."} autoComplete="off" disabled={sending} />
-          <Button type="submit" size="icon" disabled={(!newMessage.trim() && !file) || sending}>
-            {sending ? <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        <Button variant="ghost" size="icon" className="flex-shrink-0">
+          <MoreVertical className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {/* Status da conexão */}
+      <ConnectionStatus />
+
+      {/* Área de mensagens */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-muted/30">
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={cn("flex", i % 2 === 0 ? "justify-start" : "justify-end")}>
+                <div className={cn(
+                  "rounded-2xl p-3 max-w-[75%] space-y-2",
+                  i % 2 === 0 ? "bg-white dark:bg-muted" : "bg-primary"
+                )}>
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <div key={msg.id} className={cn("flex", msg.is_from_lead ? "justify-start" : "justify-end")}>
+              <div className={cn(
+                "rounded-2xl px-4 py-2 max-w-[75%] shadow-sm",
+                msg.is_from_lead 
+                  ? "bg-white dark:bg-muted text-foreground" 
+                  : "bg-primary text-primary-foreground"
+              )}>
+                <MediaMessage msg={msg} />
+                {msg.message_content && (
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                    {msg.message_content}
+                  </p>
+                )}
+                <p className={cn(
+                  "text-xs mt-1 text-right",
+                  msg.is_from_lead ? "text-muted-foreground" : "text-primary-foreground/70"
+                )}>
+                  {new Date(msg.message_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input de mensagem */}
+      <form onSubmit={handleSendMessage} className="flex items-center gap-2 px-4 py-3 border-t bg-card">
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={(e) => setFile(e.target.files?.[0] || null)} 
+          className="hidden"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+        />
+        <Button 
+          type="button" 
+          size="icon" 
+          variant="ghost" 
+          onClick={() => fileInputRef.current?.click()} 
+          disabled={sending}
+          className="flex-shrink-0"
+        >
+          <Paperclip className="h-4 w-4" />
+        </Button>
+        
+        {file && (
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <FileText className="w-3 h-3" />
+            <span className="text-xs truncate max-w-20">{file.name}</span>
+            <Button 
+              type="button" 
+              size="sm" 
+              variant="ghost" 
+              onClick={() => {
+                setFile(null);
+                if(fileInputRef.current) fileInputRef.current.value = "";
+              }}
+              className="h-4 w-4 p-0 hover:bg-transparent"
+            >
+              ×
+            </Button>
+          </Badge>
+        )}
+        
+        <Input 
+          value={newMessage} 
+          onChange={(e) => setNewMessage(e.target.value)} 
+          placeholder={file ? `${file.name} - Digite uma mensagem...` : "Digite uma mensagem..."} 
+          autoComplete="off" 
+          disabled={sending}
+          className="flex-1 rounded-full border-muted-foreground/20"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage(e);
+            }
+          }}
+        />
+        
+        <Button 
+          type="submit" 
+          size="icon" 
+          disabled={(!newMessage.trim() && !file) || sending}
+          className="flex-shrink-0 rounded-full"
+        >
+          {sending ? (
+            <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </Button>
+      </form>
+    </div>
   );
 }

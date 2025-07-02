@@ -6,6 +6,7 @@ import { Database } from '@/types/database';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
@@ -166,20 +167,31 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
     }
 
     return (
-        <div className="flex flex-col h-full border-r">
-            <div className="p-4 border-b">
-                <h2 className="text-xl font-semibold">Conversas</h2>
+        <div className="flex flex-col h-full bg-background border-r">
+            {/* Header com busca */}
+            <div className="p-3 border-b bg-card">
                 <Input
-                    placeholder="Pesquisar conversa..."
+                    placeholder="Pesquisar conversa ou contato"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="mt-2"
+                    className="rounded-lg"
                 />
             </div>
-            <div className="flex-1 overflow-y-auto">
-                {loading ? (
-                    <div className="p-4 space-y-4">
-                        {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+            {/* Lista de conversas */}
+            <div className="flex-1 overflow-y-auto">{loading ? (
+                    <div className="space-y-0">
+                        {Array.from({ length: 10 }).map((_, i) => (
+                            <div key={i} className="flex items-center gap-3 px-4 py-3 border-b">
+                                <Skeleton className="h-12 w-12 rounded-full" />
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <Skeleton className="h-4 w-32" />
+                                        <Skeleton className="h-3 w-12" />
+                                    </div>
+                                    <Skeleton className="h-3 w-48" />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : error ? (
                     <div className="p-4">
@@ -206,40 +218,48 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                     </div>
                 ) : (
                     filteredChats.map(chat => (
-                        <div
+                        <button
                             key={chat.lead.id}
                             className={cn(
-                                "flex items-center p-4 cursor-pointer hover:bg-muted/50",
-                                selectedLeadId === chat.lead.id && "bg-muted"
+                                "flex w-full items-center gap-3 px-4 py-3 border-b transition-colors text-left",
+                                selectedLeadId === chat.lead.id ? "bg-muted" : "hover:bg-muted/60"
                             )}
                             onClick={() => handleSelectLead(chat.lead)}
+                            aria-current={selectedLeadId === chat.lead.id}
                         >
-                            <Avatar className="h-10 w-10 mr-4">
+                            <Avatar className="h-12 w-12 flex-shrink-0">
                                 <AvatarImage src={undefined} alt={chat.lead.name || 'L'} />
-                                <AvatarFallback>{chat.lead.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
+                                    {chat.lead.name?.charAt(0).toUpperCase() || 'L'}
+                                </AvatarFallback>
                             </Avatar>
-                            <div className="flex-1 overflow-hidden">
-                                <p className="font-semibold truncate">{chat.lead.name}</p>
-                                <div className="flex items-center gap-1">
-                                    {!chat.is_from_lead && (
-                                        <span className="text-xs text-blue-600">Você:</span>
-                                    )}
-                                    <p className="text-sm text-muted-foreground truncate">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className={cn(
+                                        "font-medium truncate", 
+                                        chat.unread_count && chat.unread_count > 0 ? "font-bold" : ""
+                                    )}>
+                                        {chat.lead.name || 'Sem nome'}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                                        {formatMessageTime(chat.last_message_timestamp)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground truncate">
+                                        {!chat.is_from_lead && (
+                                            <span className="text-blue-600 font-medium">Você: </span>
+                                        )}
                                         {chat.last_message}
-                                    </p>
+                                    </span>
+                                    {chat.unread_count && chat.unread_count > 0 && (
+                                        <Badge className="ml-2 bg-green-500 hover:bg-green-600 text-white rounded-full px-2 py-0.5 text-xs font-semibold flex-shrink-0">
+                                            {chat.unread_count > 99 ? '99+' : chat.unread_count}
+                                        </Badge>
+                                    )}
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end ml-2">
-                                <p className="text-xs text-muted-foreground">
-                                    {formatMessageTime(chat.last_message_timestamp)}
-                                </p>
-                                {chat.unread_count && chat.unread_count > 0 && (
-                                    <div className="bg-primary text-primary-foreground rounded-full min-w-[20px] h-5 flex items-center justify-center text-xs font-medium mt-1">
-                                        {chat.unread_count > 99 ? '99+' : chat.unread_count}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        </button>
                     ))
                 )}
             </div>

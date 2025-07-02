@@ -43,25 +43,25 @@ function ChatSkeleton() {
 // Componente de loading para visualização do chat
 function ChatViewSkeleton() {
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-4 border-b">
-        <div className="flex items-center space-x-3">
-          <Skeleton className="h-10 w-10 rounded-full" />
-          <div>
-            <Skeleton className="h-5 w-32 mb-1" />
-            <Skeleton className="h-3 w-20" />
-          </div>
+    <div className="h-full flex flex-col bg-background">
+      {/* Header skeleton */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-card">
+        <Skeleton className="h-12 w-12 rounded-full" />
+        <div className="flex-1">
+          <Skeleton className="h-5 w-32 mb-1" />
+          <Skeleton className="h-3 w-20" />
         </div>
       </div>
-      <div className="flex-1 p-4 space-y-4">
+      {/* Messages skeleton */}
+      <div className="flex-1 overflow-hidden px-4 py-3 space-y-3 bg-muted/20">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className={cn(
             "flex", 
             i % 3 === 0 ? "justify-end" : "justify-start"
           )}>
             <div className={cn(
-              "max-w-xs rounded-lg p-3",
-              i % 3 === 0 ? "bg-primary" : "bg-muted"
+              "max-w-[75%] rounded-2xl p-3 shadow-sm",
+              i % 3 === 0 ? "bg-primary" : "bg-white dark:bg-muted"
             )}>
               <Skeleton className="h-4 w-24 mb-1" />
               <Skeleton className="h-3 w-16" />
@@ -69,8 +69,11 @@ function ChatViewSkeleton() {
           </div>
         ))}
       </div>
-      <div className="p-4 border-t">
-        <Skeleton className="h-10 w-full" />
+      {/* Input skeleton */}
+      <div className="flex items-center gap-2 px-4 py-3 border-t bg-card">
+        <Skeleton className="h-9 w-9 rounded-full" />
+        <Skeleton className="flex-1 h-10 rounded-full" />
+        <Skeleton className="h-9 w-9 rounded-full" />
       </div>
     </div>
   );

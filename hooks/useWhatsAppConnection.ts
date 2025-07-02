@@ -93,7 +93,17 @@ export function useWhatsAppConnection() {
 
   // Setup da subscription real-time - memoizada
   const setupRealtimeSubscription = useCallback(() => {
-    if (!user?.id || channelRef.current) return;
+    if (!user?.id) return;
+
+    // Limpar canal antigo antes de criar novo
+    if (channelRef.current) {
+      try {
+        supabase.removeChannel(channelRef.current);
+      } catch (error) {
+        console.warn('Erro ao limpar canal WhatsApp (antes de criar novo):', error);
+      }
+      channelRef.current = null;
+    }
 
     try {
       console.log('Configurando subscription real-time para WhatsApp...');

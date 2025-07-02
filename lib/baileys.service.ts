@@ -505,6 +505,8 @@ async function updateConnectionStatus(
         p_qr_code: qrCode,
         p_whatsapp_user: whatsappUser,
         p_phone_number: whatsappUser?.id || null,
+        p_connected_at: status === 'connected' ? new Date().toISOString() : null,
+        p_disconnected_at: status === 'disconnected' ? new Date().toISOString() : null,
         p_error_message: errorMessage
       });
 
@@ -516,6 +518,35 @@ async function updateConnectionStatus(
     
   } catch (error) {
     console.error('[Baileys] Erro ao atualizar status no Supabase:', error);
+  }
+}
+
+// --- FUNÇÕES DE LOCK DE CONCORRÊNCIA (REDIS) ---
+async function acquireConnectionLock(userId: string, ttl = 30): Promise<boolean> {
+  const redisService = await getRedisService();
+  if (!redisService) return true; // Se não houver Redis, não bloqueia
+  const lockKey = `whatsapp:lock:${userId}`;
+  try {
+    // SETNX + EXPIRE (atomic)
+    const result = await (redisService as any).set(lockKey, '1', ttl);
+    // ioredis: set(key, value, 'NX', 'EX', ttl)
+    // vercel/kv: setex(key, ttl, value)
+    // Para compatibilidade, retorna true se não existir ou se setex funcionar
+    return result === 'OK' || result === undefined;
+  } catch (err) {
+    console.error('[Baileys] Erro ao adquirir lock Redis:', err);
+    return false;
+  }
+}
+
+async function releaseConnectionLock(userId: string) {
+  const redisService = await getRedisService();
+  if (!redisService) return;
+  const lockKey = `whatsapp:lock:${userId}`;
+  try {
+    await redisService.del(lockKey);
+  } catch (err) {
+    console.error('[Baileys] Erro ao liberar lock Redis:', err);
   }
 }
 
