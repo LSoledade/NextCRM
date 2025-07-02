@@ -516,32 +516,16 @@ export async function getConnectionState(instanceName: string = INSTANCE_NAME): 
  */
 export async function processWebhook(webhookData: any): Promise<void> {
   try {
-    console.log('📥 Processando webhook:', {
-      event: webhookData.event,
-      instance: webhookData.instance,
-      timestamp: new Date().toISOString()
-    });
+    console.log('📥 Processando webhook:', webhookData.event);
 
     // Processa diferentes tipos de eventos
     switch (webhookData.event) {
       case 'QRCODE_UPDATED':
         console.log('📱 QR Code atualizado');
-        if (webhookData.data?.qrcode) {
-          console.log('🔄 Novo QR Code disponível');
-          // Aqui você pode implementar lógica para atualizar o QR Code na interface
-          // Exemplo: salvar no Redis ou notificar via WebSocket
-        }
         break;
 
       case 'CONNECTION_UPDATE':
         console.log('🔗 Status de conexão atualizado:', webhookData.data?.state);
-        if (webhookData.data?.state === 'open') {
-          console.log('✅ WhatsApp conectado com sucesso');
-          // Aqui você pode atualizar o status no banco de dados
-        } else if (webhookData.data?.state === 'close') {
-          console.log('❌ WhatsApp desconectado');
-          // Aqui você pode marcar como desconectado no banco
-        }
         break;
 
       case 'MESSAGES_UPSERT':
@@ -555,79 +539,35 @@ export async function processWebhook(webhookData: any): Promise<void> {
 
       case 'SEND_MESSAGE':
         console.log('📤 Confirmação de mensagem enviada');
-        if (webhookData.data) {
-          console.log('✅ Mensagem confirmada como enviada:', {
-            messageId: webhookData.data.key?.id,
-            to: webhookData.data.key?.remoteJid,
-            timestamp: webhookData.data.messageTimestamp
-          });
-        }
         break;
 
       case 'MESSAGES_UPDATE':
         console.log('📝 Mensagem atualizada');
-        if (webhookData.data?.messages && Array.isArray(webhookData.data.messages)) {
-          for (const message of webhookData.data.messages) {
-            console.log('🔄 Status da mensagem atualizado:', {
-              messageId: message.key?.id,
-              status: message.update?.status,
-              timestamp: message.update?.timestamp
-            });
-            // Aqui você pode atualizar o status da mensagem no banco
-          }
-        }
         break;
 
       case 'MESSAGES_DELETE':
         console.log('🗑️ Mensagem deletada');
-        if (webhookData.data?.messages && Array.isArray(webhookData.data.messages)) {
-          for (const message of webhookData.data.messages) {
-            console.log('❌ Mensagem deletada:', message.key?.id);
-            // Aqui você pode marcar a mensagem como deletada no banco
-          }
-        }
         break;
 
       case 'CONTACTS_UPSERT':
         console.log('👥 Contatos atualizados');
-        if (webhookData.data?.contacts && Array.isArray(webhookData.data.contacts)) {
-          console.log(`📋 ${webhookData.data.contacts.length} contatos atualizados`);
-          // Aqui você pode sincronizar contatos com seu banco de dados
-        }
         break;
 
       case 'CHATS_UPSERT':
         console.log('💬 Chats atualizados');
-        if (webhookData.data?.chats && Array.isArray(webhookData.data.chats)) {
-          console.log(`📋 ${webhookData.data.chats.length} chats atualizados`);
-          // Aqui você pode sincronizar chats com seu banco de dados
-        }
         break;
 
       case 'APPLICATION_STARTUP':
         console.log('🚀 Aplicação iniciada');
-        console.log('Instance:', webhookData.instance);
-        // Aqui você pode implementar lógica para quando a instância inicia
         break;
 
       case 'PRESENCE_UPDATE':
         console.log('👁️ Status de presença atualizado');
-        if (webhookData.data) {
-          console.log('👤 Presença:', {
-            jid: webhookData.data.id,
-            presence: webhookData.data.presences
-          });
-        }
         break;
 
       default:
         console.log(`⚠️ Evento não processado: ${webhookData.event}`);
         break;
-    }
-
-    // Log completo dos dados para debug em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 Dados completos do webhook:', JSON.stringify(webhookData, null, 2));
     }
 
   } catch (error: any) {
@@ -687,24 +627,35 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
       hasMedia: !!mediaUrl
     });
 
-    // Buscar lead pelo número de telefone (remetente)
-    const supabase = await (await import('@/utils/supabase/server')).createClient();
+    // Usar cliente de serviço para operações de webhook (bypass RLS)
+    const { createServiceClient } = await import('@/utils/supabase/service');
+    const supabase = createServiceClient();
+    
     let leadId: string | null = null;
+    let userId: string | null = null;
+    
     if (fromJid) {
       // Extrair apenas o número (ex: 5511999999999@s.whatsapp.net)
       const phoneMatch = fromJid.match(/^(\d{10,15})@/);
       const phone = phoneMatch ? phoneMatch[1] : null;
+      
       if (phone) {
+        console.log('🔍 Buscando lead pelo telefone:', phone);
+        
         // Buscar lead pelo telefone
         const { data: lead, error: leadError } = await supabase
           .from('leads')
-          .select('id, phone')
+          .select('id, phone, user_id')
           .eq('phone', phone)
           .single();
+          
         if (lead && !leadError) {
           leadId = lead.id;
+          userId = lead.user_id;
+          console.log('✅ Lead encontrado:', { leadId, userId, phone });
         } else {
-          // Lead não encontrado, criar novo contato
+          console.log('📱 Lead não encontrado, criando novo...');
+          
           // Buscar nome do contato no payload, se disponível
           let contactName = null;
           if (message.pushName) {
@@ -720,45 +671,79 @@ async function processIncomingMessage(message: any, instanceName: string): Promi
           if (!contactName) {
             contactName = `WhatsApp ${phone}`;
           }
-          // Lead não encontrado, criar novo contato
-          const { data: newLead, error: newLeadError } = await supabase
-            .from('leads')
-            .insert({
-              phone,
-              name: contactName,
-              status: 'novo',
-              source: 'whatsapp',
-            })
+          
+          // Buscar primeiro usuário ativo para associar o lead
+          const { data: firstUser, error: userError } = await supabase
+            .from('users')
             .select('id')
+            .limit(1)
             .single();
-          if (newLead && !newLeadError) {
-            leadId = newLead.id;
-            console.log('Novo lead criado para contato desconhecido:', phone);
+            
+          if (firstUser && !userError) {
+            userId = firstUser.id;
+            
+            // Criar novo lead
+            const { data: newLead, error: newLeadError } = await supabase
+              .from('leads')
+              .insert({
+                phone,
+                name: contactName,
+                status: 'New',
+                source: 'whatsapp',
+                user_id: userId
+              })
+              .select('id')
+              .single();
+              
+            if (newLead && !newLeadError) {
+              leadId = newLead.id;
+              console.log('✅ Novo lead criado:', { leadId, userId, phone, name: contactName });
+            } else {
+              console.error('❌ Erro ao criar novo lead:', newLeadError);
+            }
           } else {
-            console.warn('Não foi possível criar lead para o telefone:', phone, newLeadError);
+            console.error('❌ Não foi possível encontrar usuário para associar o lead:', userError);
           }
         }
       }
     }
 
     // Persistir mensagem recebida
-    const { error: dbError } = await supabase
-      .from('whatsapp_messages')
-      .insert({
-        lead_id: leadId,
-        sender_jid: fromJid,
-        message_content: messageContent,
-        message_type: messageType,
-        message_timestamp: timestamp,
-        message_id: messageId,
-        is_from_lead: true,
-        media_url: mediaUrl,
-        instance: instanceName
-      });
-    if (dbError) {
-      console.error('Erro ao salvar mensagem recebida no banco:', dbError);
+    if (leadId && userId) {
+      console.log('💾 Salvando mensagem no banco:', { leadId, userId, messageType, hasContent: !!messageContent });
+      
+      const { error: dbError } = await supabase
+        .from('whatsapp_messages')
+        .insert({
+          lead_id: leadId,
+          user_id: userId,
+          sender_jid: fromJid,
+          message_content: messageContent,
+          message_type: messageType,
+          message_timestamp: timestamp,
+          message_id: messageId,
+          is_from_lead: true,
+          media_url: mediaUrl
+        });
+        
+      if (dbError) {
+        console.error('❌ Erro ao salvar mensagem recebida no banco:', dbError);
+        console.error('📋 Dados que tentamos inserir:', {
+          lead_id: leadId,
+          user_id: userId,
+          sender_jid: fromJid,
+          message_type: messageType,
+          message_timestamp: timestamp,
+          message_id: messageId,
+          is_from_lead: true,
+          instance: instanceName,
+          content_length: messageContent?.length || 0
+        });
+      } else {
+        console.log('✅ Mensagem recebida salva no banco com sucesso');
+      }
     } else {
-      console.log('✅ Mensagem recebida salva no banco com sucesso');
+      console.warn('⚠️ Não foi possível salvar mensagem - lead ou usuário não encontrado', { leadId, userId, fromJid });
     }
 
     // Aqui você pode salvar a mensagem no banco de dados
