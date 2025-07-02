@@ -35,8 +35,21 @@ export interface QRCodeResponse {
 
 export interface WhatsAppMessage {
   phone: string;
-  message: string;
+  message: string | any; // Suporta tanto texto simples quanto objetos de mídia
   instanceName?: string;
+}
+
+export interface WhatsAppTextMessage {
+  number: string;
+  text: string;
+}
+
+export interface WhatsAppMediaMessage {
+  number: string;
+  mediatype: 'image' | 'video' | 'audio' | 'document';
+  media: string; // URL ou base64
+  caption?: string;
+  filename?: string;
 }
 
 /**
@@ -218,6 +231,7 @@ export async function reconnectInstance(instanceName: string = INSTANCE_NAME): P
 export async function setupWebhook(instanceName: string = INSTANCE_NAME): Promise<boolean> {
   try {
     console.log(`🕷️ Configurando webhook para: ${instanceName}`);
+    console.log(`🌐 URL do webhook: ${WEBHOOK_URL}`);
     
     const payload = {
       enabled: true,
@@ -244,15 +258,26 @@ export async function setupWebhook(instanceName: string = INSTANCE_NAME): Promis
         "CALL",
         "NEW_JWT_TOKEN"
       ],
-      webhook_by_events: true
+      webhook_by_events: false // Usar uma URL única para todos os eventos
     };
+    
+    console.log('📋 Payload do webhook:', JSON.stringify(payload, null, 2));
     
     const response = await api.post(`/webhook/set/${instanceName}`, payload);
     console.log('✅ Webhook configurado com sucesso');
+    console.log('📊 Resposta:', response.data);
     
     return true;
   } catch (error: any) {
     console.error('❌ Erro ao configurar webhook:', error.message);
+    
+    if (error.response) {
+      console.error('📊 Resposta da API:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    
     return false;
   }
 }
@@ -270,19 +295,134 @@ export async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<any> {
     if (!status.connected) {
       throw new Error('Instance not connected');
     }
+
+    let endpoint = '';
+    let payload: any = {};
+
+    // Determinar tipo de mensagem e endpoint
+    if (typeof data.message === 'string') {
+      // Mensagem de texto simples
+      endpoint = `/message/sendText/${instanceName}`;
+      payload = {
+        number: data.phone,
+        text: data.message
+      };
+    } else if (typeof data.message === 'object') {
+      // Mensagem com mídia ou estruturada
+      if (data.message.text) {
+        // Mensagem de texto estruturada
+        endpoint = `/message/sendText/${instanceName}`;
+        payload = {
+          number: data.phone,
+          text: data.message.text
+        };
+      } else if (data.message.image) {
+        // Mensagem de imagem
+        endpoint = `/message/sendMedia/${instanceName}`;
+        payload = {
+          number: data.phone,
+          mediatype: 'image',
+          media: data.message.image.url,
+          caption: data.message.caption || ''
+        };
+      } else if (data.message.video) {
+        // Mensagem de vídeo
+        endpoint = `/message/sendMedia/${instanceName}`;
+        payload = {
+          number: data.phone,
+          mediatype: 'video',
+          media: data.message.video.url,
+          caption: data.message.caption || ''
+        };
+      } else if (data.message.audio) {
+        // Mensagem de áudio
+        endpoint = `/message/sendMedia/${instanceName}`;
+        payload = {
+          number: data.phone,
+          mediatype: 'audio',
+          media: data.message.audio.url
+        };
+      } else if (data.message.document) {
+        // Mensagem de documento
+        endpoint = `/message/sendMedia/${instanceName}`;
+        payload = {
+          number: data.phone,
+          mediatype: 'document',
+          media: data.message.document.url,
+          filename: data.message.fileName || 'documento'
+        };
+      } else {
+        throw new Error('Formato de mensagem não suportado');
+      }
+    } else {
+      throw new Error('Formato de mensagem inválido');
+    }
+
+    console.log(`📡 Enviando para endpoint: ${endpoint}`);
+    console.log(`📊 Payload:`, JSON.stringify(payload, null, 2));
     
-    const payload = {
-      number: data.phone,
-      text: data.message
-    };
-    
-    const response = await api.post(`/message/sendText/${instanceName}`, payload);
+    const response = await api.post(endpoint, payload);
     console.log('✅ Mensagem enviada com sucesso');
+    console.log('📱 Resposta da API:', JSON.stringify(response.data, null, 2));
     
-    // Retornar a resposta completa da API em vez de apenas true
+    // Retornar a resposta completa da API
     return response.data;
   } catch (error: any) {
     console.error('❌ Erro ao enviar mensagem:', error.message);
+    
+    // Log detalhado do erro
+    if (error.response) {
+      console.error('📊 Erro da API:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      });
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Envia uma mensagem de texto simples via WhatsApp
+ */
+export async function sendTextMessage(data: WhatsAppTextMessage, instanceName: string = INSTANCE_NAME): Promise<any> {
+  try {
+    console.log(`📤 Enviando texto para: ${data.number}`);
+    
+    const status = await checkInstanceStatus(instanceName);
+    if (!status.connected) {
+      throw new Error('Instance not connected');
+    }
+
+    const response = await api.post(`/message/sendText/${instanceName}`, data);
+    console.log('✅ Texto enviado com sucesso');
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Erro ao enviar texto:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Envia uma mensagem de mídia via WhatsApp
+ */
+export async function sendMediaMessage(data: WhatsAppMediaMessage, instanceName: string = INSTANCE_NAME): Promise<any> {
+  try {
+    console.log(`📤 Enviando mídia (${data.mediatype}) para: ${data.number}`);
+    
+    const status = await checkInstanceStatus(instanceName);
+    if (!status.connected) {
+      throw new Error('Instance not connected');
+    }
+
+    const response = await api.post(`/message/sendMedia/${instanceName}`, data);
+    console.log('✅ Mídia enviada com sucesso');
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Erro ao enviar mídia:', error.message);
     throw error;
   }
 }
@@ -386,50 +526,98 @@ export async function processWebhook(webhookData: any): Promise<void> {
     switch (webhookData.event) {
       case 'QRCODE_UPDATED':
         console.log('📱 QR Code atualizado');
-        // Aqui você pode implementar lógica para atualizar o QR Code na interface
+        if (webhookData.data?.qrcode) {
+          console.log('🔄 Novo QR Code disponível');
+          // Aqui você pode implementar lógica para atualizar o QR Code na interface
+          // Exemplo: salvar no Redis ou notificar via WebSocket
+        }
         break;
 
       case 'CONNECTION_UPDATE':
         console.log('🔗 Status de conexão atualizado:', webhookData.data?.state);
-        // Aqui você pode implementar lógica para atualizar o status da conexão
+        if (webhookData.data?.state === 'open') {
+          console.log('✅ WhatsApp conectado com sucesso');
+          // Aqui você pode atualizar o status no banco de dados
+        } else if (webhookData.data?.state === 'close') {
+          console.log('❌ WhatsApp desconectado');
+          // Aqui você pode marcar como desconectado no banco
+        }
         break;
 
       case 'MESSAGES_UPSERT':
-        console.log('📨 Nova mensagem recebida:', {
-          from: webhookData.data?.key?.remoteJid,
-          message: webhookData.data?.message
-        });
-        // Aqui você pode implementar lógica para processar mensagens recebidas
+        console.log('📨 Nova mensagem recebida');
+        if (webhookData.data?.messages && Array.isArray(webhookData.data.messages)) {
+          for (const message of webhookData.data.messages) {
+            await processIncomingMessage(message, webhookData.instance);
+          }
+        }
         break;
 
       case 'SEND_MESSAGE':
-        console.log('📤 Mensagem enviada confirmada');
-        // Aqui você pode implementar lógica para confirmar envio de mensagens
+        console.log('📤 Confirmação de mensagem enviada');
+        if (webhookData.data) {
+          console.log('✅ Mensagem confirmada como enviada:', {
+            messageId: webhookData.data.key?.id,
+            to: webhookData.data.key?.remoteJid,
+            timestamp: webhookData.data.messageTimestamp
+          });
+        }
         break;
 
       case 'MESSAGES_UPDATE':
         console.log('📝 Mensagem atualizada');
-        // Aqui você pode implementar lógica para atualizar status de mensagens
+        if (webhookData.data?.messages && Array.isArray(webhookData.data.messages)) {
+          for (const message of webhookData.data.messages) {
+            console.log('🔄 Status da mensagem atualizado:', {
+              messageId: message.key?.id,
+              status: message.update?.status,
+              timestamp: message.update?.timestamp
+            });
+            // Aqui você pode atualizar o status da mensagem no banco
+          }
+        }
         break;
 
       case 'MESSAGES_DELETE':
         console.log('🗑️ Mensagem deletada');
-        // Aqui você pode implementar lógica para processar mensagens deletadas
+        if (webhookData.data?.messages && Array.isArray(webhookData.data.messages)) {
+          for (const message of webhookData.data.messages) {
+            console.log('❌ Mensagem deletada:', message.key?.id);
+            // Aqui você pode marcar a mensagem como deletada no banco
+          }
+        }
         break;
 
       case 'CONTACTS_UPSERT':
         console.log('👥 Contatos atualizados');
-        // Aqui você pode implementar lógica para sincronizar contatos
+        if (webhookData.data?.contacts && Array.isArray(webhookData.data.contacts)) {
+          console.log(`📋 ${webhookData.data.contacts.length} contatos atualizados`);
+          // Aqui você pode sincronizar contatos com seu banco de dados
+        }
         break;
 
       case 'CHATS_UPSERT':
         console.log('💬 Chats atualizados');
-        // Aqui você pode implementar lógica para sincronizar chats
+        if (webhookData.data?.chats && Array.isArray(webhookData.data.chats)) {
+          console.log(`📋 ${webhookData.data.chats.length} chats atualizados`);
+          // Aqui você pode sincronizar chats com seu banco de dados
+        }
         break;
 
       case 'APPLICATION_STARTUP':
         console.log('🚀 Aplicação iniciada');
+        console.log('Instance:', webhookData.instance);
         // Aqui você pode implementar lógica para quando a instância inicia
+        break;
+
+      case 'PRESENCE_UPDATE':
+        console.log('👁️ Status de presença atualizado');
+        if (webhookData.data) {
+          console.log('👤 Presença:', {
+            jid: webhookData.data.id,
+            presence: webhookData.data.presences
+          });
+        }
         break;
 
       default:
@@ -437,8 +625,10 @@ export async function processWebhook(webhookData: any): Promise<void> {
         break;
     }
 
-    // Log completo dos dados para debug (remova em produção se necessário)
-    console.log('📊 Dados completos do webhook:', JSON.stringify(webhookData, null, 2));
+    // Log completo dos dados para debug em desenvolvimento
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 Dados completos do webhook:', JSON.stringify(webhookData, null, 2));
+    }
 
   } catch (error: any) {
     console.error('❌ Erro ao processar webhook:', error.message);
@@ -447,8 +637,190 @@ export async function processWebhook(webhookData: any): Promise<void> {
 }
 
 /**
+ * Processa mensagens recebidas via webhook
+ */
+async function processIncomingMessage(message: any, instanceName: string): Promise<void> {
+  try {
+    console.log('📨 Processando mensagem recebida:', {
+      messageId: message.key?.id,
+      from: message.key?.remoteJid,
+      timestamp: message.messageTimestamp,
+      messageType: message.message ? Object.keys(message.message)[0] : 'unknown'
+    });
+
+    // Extrair informações da mensagem
+    const messageId = message.key?.id;
+    const fromJid = message.key?.remoteJid;
+    const timestamp = message.messageTimestamp ? new Date(message.messageTimestamp * 1000) : new Date();
+    
+    // Determinar tipo de mensagem e conteúdo
+    let messageContent = '';
+    let messageType = 'text';
+    let mediaUrl = null;
+
+    if (message.message) {
+      if (message.message.conversation) {
+        messageContent = message.message.conversation;
+        messageType = 'text';
+      } else if (message.message.extendedTextMessage) {
+        messageContent = message.message.extendedTextMessage.text;
+        messageType = 'text';
+      } else if (message.message.imageMessage) {
+        messageContent = message.message.imageMessage.caption || '';
+        messageType = 'image';
+        // mediaUrl seria processada aqui se necessário
+      } else if (message.message.videoMessage) {
+        messageContent = message.message.videoMessage.caption || '';
+        messageType = 'video';
+      } else if (message.message.audioMessage) {
+        messageContent = '[Áudio]';
+        messageType = 'audio';
+      } else if (message.message.documentMessage) {
+        messageContent = message.message.documentMessage.fileName || '[Documento]';
+        messageType = 'document';
+      }
+    }
+
+    console.log('📝 Conteúdo da mensagem processado:', {
+      type: messageType,
+      content: messageContent.substring(0, 100) + (messageContent.length > 100 ? '...' : ''),
+      hasMedia: !!mediaUrl
+    });
+
+    // Aqui você pode salvar a mensagem no banco de dados
+    // Exemplo: procurar o lead pelo número de telefone e salvar a mensagem
+
+  } catch (error: any) {
+    console.error('❌ Erro ao processar mensagem recebida:', error.message);
+  }
+}
+
+/**
  * Alias para checkInstanceStatus para compatibilidade
  */
 export async function checkConnectionStatus(instanceName: string = INSTANCE_NAME): Promise<InstanceStatus> {
   return await checkInstanceStatus(instanceName);
+}
+
+/**
+ * Testa a conectividade com a Evolution API
+ */
+export async function testConnection(): Promise<{
+  success: boolean;
+  message: string;
+  details?: any;
+}> {
+  try {
+    console.log('🔧 Testando conectividade com Evolution API...');
+    console.log('🌐 URL:', EVOLUTION_API_URL);
+    console.log('🔑 API Key:', EVOLUTION_API_KEY?.substring(0, 8) + '...');
+    
+    // Teste básico de conectividade
+    const response = await api.get('/instance/fetchInstances');
+    
+    console.log('✅ Conectividade OK');
+    console.log('📊 Resposta:', {
+      status: response.status,
+      instancesCount: response.data?.length || 0
+    });
+    
+    return {
+      success: true,
+      message: 'Conectividade com Evolution API OK',
+      details: {
+        status: response.status,
+        instancesFound: response.data?.length || 0,
+        url: EVOLUTION_API_URL
+      }
+    };
+    
+  } catch (error: any) {
+    console.error('❌ Erro de conectividade:', error.message);
+    
+    let errorDetails: any = {
+      url: EVOLUTION_API_URL,
+      error: error.message
+    };
+    
+    if (error.response) {
+      errorDetails.apiResponse = {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      };
+    }
+    
+    return {
+      success: false,
+      message: `Erro de conectividade: ${error.message}`,
+      details: errorDetails
+    };
+  }
+}
+
+/**
+ * Função de diagnóstico completo
+ */
+export async function runDiagnostics(): Promise<{
+  success: boolean;
+  results: any;
+}> {
+  console.log('🔍 Executando diagnósticos completos...');
+  
+  const results: any = {
+    timestamp: new Date().toISOString(),
+    configuration: {
+      apiUrl: EVOLUTION_API_URL,
+      instanceName: INSTANCE_NAME,
+      webhookUrl: WEBHOOK_URL,
+      hasApiKey: !!EVOLUTION_API_KEY
+    }
+  };
+  
+  try {
+    // 1. Teste de conectividade
+    console.log('📡 1. Testando conectividade...');
+    const connectivity = await testConnection();
+    results.connectivity = connectivity;
+    
+    // 2. Verificar status da instância
+    console.log('📱 2. Verificando status da instância...');
+    const instanceStatus = await checkInstanceStatus();
+    results.instanceStatus = instanceStatus;
+    
+    // 3. Verificar webhook
+    console.log('🕷️ 3. Verificando webhook...');
+    try {
+      const webhookResponse = await api.get(`/webhook/find/${INSTANCE_NAME}`);
+      results.webhook = {
+        configured: true,
+        details: webhookResponse.data
+      };
+    } catch (webhookError: any) {
+      results.webhook = {
+        configured: false,
+        error: webhookError.message
+      };
+    }
+    
+    // 4. Verificar se pode enviar mensagens
+    results.canSendMessages = connectivity.success && instanceStatus.connected;
+    
+    console.log('✅ Diagnósticos concluídos');
+    
+    return {
+      success: true,
+      results
+    };
+    
+  } catch (error: any) {
+    console.error('❌ Erro durante diagnósticos:', error.message);
+    
+    results.error = error.message;
+    
+    return {
+      success: false,
+      results
+    };
+  }
 }

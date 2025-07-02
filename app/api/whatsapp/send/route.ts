@@ -1,5 +1,10 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { sendWhatsAppMessage } from '@/lib/evolution.service';
+import { 
+  sendWhatsAppMessage, 
+  sendTextMessage, 
+  sendMediaMessage,
+  checkInstanceStatus 
+} from '@/lib/evolution.service';
 import { createClient } from '@/utils/supabase/server';
 
 // Constantes para validação e segurança
@@ -197,14 +202,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Preparar variáveis para a mensagem
-    let messageContent: any;
-    let messageType: string = 'text';
-    let mediaUrl: string | null = null;
-    let mimeType: string | null = null;
+    // Preparar dados para envio
     const sanitizedText = text ? sanitizeText(text) : null;
 
+    // Validar se há conteúdo para enviar
+    if (!file && !sanitizedText?.trim()) {
+      return NextResponse.json({ 
+        error: 'Mensagem de texto ou arquivo é obrigatório' 
+      }, { status: 400 });
+    }
+
     // Processar arquivo se fornecido
+    let mediaUrl: string | null = null;
+    let mimeType: string | null = null;
+    
     if (file) {
       try {
         const buffer = Buffer.from(await file.arrayBuffer());
@@ -219,56 +230,12 @@ export async function POST(request: NextRequest) {
         
         mediaUrl = await uploadMediaSecurely(buffer, mimeType, lead_id, user.id, file.name);
         
-        const fileType = mimeType.split('/')[0];
-
-        switch (fileType) {
-          case 'image': 
-            messageContent = { 
-              image: { url: mediaUrl }, 
-              caption: sanitizedText || '' 
-            }; 
-            messageType = 'image'; 
-            break;
-            
-          case 'audio': 
-            messageContent = { 
-              audio: { url: mediaUrl }, 
-              mimetype: mimeType 
-            }; 
-            messageType = 'audio'; 
-            break;
-            
-          case 'video': 
-            messageContent = { 
-              video: { url: mediaUrl }, 
-              caption: sanitizedText || '' 
-            }; 
-            messageType = 'video'; 
-            break;
-            
-          default: 
-            messageContent = { 
-              document: { url: mediaUrl }, 
-              mimetype: mimeType, 
-              fileName: file.name || 'documento'
-            }; 
-            messageType = 'document';
-            break;
-        }
       } catch (uploadError: any) {
         console.error('Erro no upload:', uploadError);
         return NextResponse.json({ 
           error: uploadError.message 
         }, { status: 400 });
       }
-    } else if (sanitizedText?.trim()) {
-      // Mensagem de texto apenas
-      messageContent = { text: sanitizedText.trim() };
-      messageType = 'text';
-    } else {
-      return NextResponse.json({ 
-        error: 'Mensagem de texto ou arquivo é obrigatório' 
-      }, { status: 400 });
     }
 
     // Tentar enviar via WhatsApp com retry
@@ -277,14 +244,53 @@ export async function POST(request: NextRequest) {
     
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        sentMsg = await sendWhatsAppMessage({
-          phone: to,
-          message: messageContent
-        });
+        if (file) {
+          // Mensagem com mídia
+          const fileType = mimeType!.split('/')[0];
+          let mediaType: 'image' | 'video' | 'audio' | 'document';
+          
+          switch (fileType) {
+            case 'image':
+              mediaType = 'image';
+              break;
+            case 'video':
+              mediaType = 'video';
+              break;
+            case 'audio':
+              mediaType = 'audio';
+              break;
+            default:
+              mediaType = 'document';
+              break;
+          }
+
+          sentMsg = await sendMediaMessage({
+            number: to,
+            mediatype: mediaType,
+            media: mediaUrl!,
+            caption: sanitizedText || undefined,
+            filename: file.name || undefined
+          });
+        } else {
+          // Mensagem de texto simples
+          sentMsg = await sendTextMessage({
+            number: to,
+            text: sanitizedText!
+          });
+        }
+        
         if (sentMsg) break;
       } catch (error: any) {
         lastError = error;
         console.error(`Tentativa ${attempt} falhou:`, error.message);
+        
+        // Log detalhado do erro para debugging
+        if (error.response) {
+          console.error('Resposta da API:', {
+            status: error.response.status,
+            data: error.response.data
+          });
+        }
         
         if (attempt < 3) {
           // Aguardar antes de tentar novamente
@@ -294,8 +300,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (!sentMsg) {
+      // Log do erro completo para debugging
+      console.error('❌ Falha completa no envio:', {
+        attempts: 3,
+        lastError: lastError?.message,
+        lastErrorResponse: lastError?.response?.data
+      });
+      
       throw new Error(lastError?.message || "Falha ao enviar mensagem pelo WhatsApp após 3 tentativas");
     }
+
+    console.log('✅ Mensagem enviada com sucesso:', {
+      messageId: sentMsg.key?.id || sentMsg.messageId || 'unknown',
+      status: sentMsg.status || 'sent'
+    });
 
     // Salvar no banco de dados com retry
     let dbSaveSuccess = false;
@@ -310,9 +328,9 @@ export async function POST(request: NextRequest) {
             sender_jid: user.id, 
             message_content: sanitizedText || null,
             message_timestamp: new Date(), 
-            message_id: sentMsg.key.id, 
+            message_id: sentMsg.key?.id || sentMsg.messageId || `msg_${Date.now()}`, 
             is_from_lead: false,
-            message_type: messageType, 
+            message_type: file ? mimeType!.split('/')[0] : 'text', 
             media_url: mediaUrl, 
             mime_type: mimeType,
           });
@@ -338,8 +356,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      messageId: sentMsg.key.id,
-      savedToDatabase: dbSaveSuccess
+      messageId: sentMsg.key?.id || sentMsg.messageId || 'unknown',
+      savedToDatabase: dbSaveSuccess,
+      status: sentMsg.status || 'sent'
     });
     
   } catch (error: any) {
