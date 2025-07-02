@@ -1,499 +1,317 @@
-import axios, { AxiosResponse } from 'axios';
+import axios from 'axios';
 
-// Cliente Supabase global - será inicializado pela API
-let supabaseClient: any = null;
+const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
+const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE_NAME || 'Leonardo';
+const WEBHOOK_URL = process.env.NEXT_PUBLIC_WEBHOOK_URL || 'https://next-crm-five-livid.vercel.app/api/whatsapp/webhook';
 
-// Função para inicializar o cliente Supabase
-export function initializeSupabaseClient(client: any) {
-  supabaseClient = client;
-}
-
-// --- CONFIGURAÇÕES DA EVOLUTION API ---
-const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';
-const INSTANCE_NAME = process.env.WHATSAPP_INSTANCE_NAME || 'Leonardo';
-
-// Verificar se as variáveis de ambiente estão configuradas
 if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-  console.warn('[Evolution] ATENÇÃO: EVOLUTION_API_URL e EVOLUTION_API_KEY devem ser configuradas no .env');
+  throw new Error('EVOLUTION_API_URL and EVOLUTION_API_KEY must be set in environment variables');
 }
 
-// --- CLIENT HTTP CONFIGURADO ---
-const evolutionClient = axios.create({
+const api = axios.create({
   baseURL: EVOLUTION_API_URL,
   headers: {
-    'Content-Type': 'application/json',
     'apikey': EVOLUTION_API_KEY,
+    'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 segundos timeout
 });
 
-// --- TIPOS E INTERFACES ---
-interface EvolutionMessage {
-  key: {
-    remoteJid: string;
-    fromMe: boolean;
-    id: string;
+export interface InstanceStatus {
+  exists: boolean;
+  connected: boolean;
+  status: string;
+  profile?: {
+    name: string;
+    number: string;
   };
-  message: any;
-  messageTimestamp: number;
-  pushName?: string;
 }
 
-// --- FUNÇÕES UTILITÁRIAS ---
-
-/**
- * Formatar número de telefone para WhatsApp
- */
-function formatPhoneNumber(phone: string): string {
-  // Remove caracteres especiais
-  const cleanPhone = phone.replace(/\D/g, '');
-  
-  // Se já tem @s.whatsapp.net, retorna como está
-  if (phone.includes('@s.whatsapp.net')) {
-    return phone;
-  }
-  
-  // Adiciona código do país se necessário (Brasil = 55)
-  let formattedPhone = cleanPhone;
-  if (cleanPhone.length === 11 && cleanPhone.startsWith('9')) {
-    formattedPhone = '55' + cleanPhone;
-  } else if (cleanPhone.length === 10) {
-    formattedPhone = '55' + cleanPhone;
-  }
-  
-  return `${formattedPhone}@s.whatsapp.net`;
+export interface QRCodeResponse {
+  qrCode?: string;
+  pairingCode?: string;
+  error?: string;
 }
 
-// --- PRINCIPAIS FUNÇÕES DA EVOLUTION API ---
+export interface WhatsAppMessage {
+  phone: string;
+  message: string;
+  instanceName?: string;
+}
 
 /**
- * Verificar se a instância existe e está ativa
+ * Verifica o status de uma instância do WhatsApp
  */
-export async function checkInstanceStatus(): Promise<{ exists: boolean; status?: string }> {
+export async function checkInstanceStatus(instanceName: string = INSTANCE_NAME): Promise<InstanceStatus> {
   try {
-    const response = await evolutionClient.get('/instance/fetchInstances');
+    console.log(`🔍 Verificando status da instância: ${instanceName}`);
     
-    if (response.data && Array.isArray(response.data)) {
-      const instance = response.data.find((inst: any) => inst.instance?.instanceName === INSTANCE_NAME);
-      if (instance) {
-        return { exists: true, status: instance.instance?.status };
-      }
+    // Busca todas as instâncias
+    const response = await api.get('/instance/fetchInstances');
+    const instances = response.data;
+    
+    console.log('📋 Instâncias encontradas:', instances.length);
+    
+    // Procura pela instância específica
+    const instance = instances.find((inst: any) => inst.name === instanceName);
+    
+    if (!instance) {
+      console.log(`❌ Instância ${instanceName} não encontrada`);
+      return {
+        exists: false,
+        connected: false,
+        status: 'not_found'
+      };
     }
     
-    return { exists: false };
-  } catch (error: any) {
-    console.error('[Evolution] Erro ao verificar instância:', error.response?.data || error.message);
-    return { exists: false };
-  }
-}
-
-/**
- * Verificar status de conexão da instância
- */
-export async function getConnectionState(): Promise<{ state: string; status?: any }> {
-  try {
-    const response = await evolutionClient.get(`/instance/connectionState/${INSTANCE_NAME}`);
-    return response.data;
-  } catch (error: any) {
-    console.error('[Evolution] Erro ao verificar status de conexão:', error.response?.data || error.message);
-    throw new Error(`Falha ao verificar conexão: ${error.response?.data?.message || error.message}`);
-  }
-}
-
-/**
- * Enviar mensagem de texto via Evolution API
- */
-export async function sendTextMessage(to: string, text: string): Promise<any> {
-  try {
-    console.log(`[Evolution] Enviando mensagem de texto para: ${to}`);
+    console.log(`✅ Instância encontrada: ${instance.name}`);
+    console.log(`🔗 Status de conexão: ${instance.connectionStatus}`);
     
-    const number = formatPhoneNumber(to);
+    const isConnected = instance.connectionStatus === 'open';
     
-    const messageData = {
-      number: number,
-      text: text
+    return {
+      exists: true,
+      connected: isConnected,
+      status: instance.connectionStatus,
+      profile: instance.profileName ? {
+        name: instance.profileName,
+        number: instance.profilePictureUrl || ''
+      } : undefined
     };
-
-    const response = await evolutionClient.post(`/message/sendText/${INSTANCE_NAME}`, messageData);
     
-    console.log('[Evolution] Mensagem de texto enviada com sucesso');
-    return response.data;
   } catch (error: any) {
-    console.error('[Evolution] Erro ao enviar mensagem de texto:', error.response?.data || error.message);
-    throw new Error(`Falha ao enviar mensagem: ${error.response?.data?.message || error.message}`);
+    console.error('❌ Erro ao verificar status da instância:', error.message);
+    return {
+      exists: false,
+      connected: false,
+      status: 'error',
+    };
   }
 }
 
 /**
- * Enviar mídia via Evolution API
+ * Obtém o QR Code para conectar a instância
  */
-export async function sendMediaMessage(
-  to: string, 
-  mediaUrl: string, 
-  mediaType: 'image' | 'video' | 'audio' | 'document', 
-  caption?: string, 
-  fileName?: string
-): Promise<any> {
+export async function fetchQRCode(instanceName: string = INSTANCE_NAME): Promise<QRCodeResponse> {
   try {
-    console.log(`[Evolution] Enviando mídia (${mediaType}) para: ${to}`);
+    console.log(`📱 Obtendo QR Code para: ${instanceName}`);
     
-    const number = formatPhoneNumber(to);
+    // Primeiro verifica se a instância existe e seu status
+    const status = await checkInstanceStatus(instanceName);
     
-    let endpoint = '';
-    let messageData: any = {
-      number: number,
-      media: mediaUrl
-    };
-
-    switch (mediaType) {
-      case 'image':
-        endpoint = 'sendMedia';
-        messageData.mediatype = 'image';
-        if (caption) messageData.caption = caption;
-        break;
-      case 'video':
-        endpoint = 'sendMedia';
-        messageData.mediatype = 'video';
-        if (caption) messageData.caption = caption;
-        break;
-      case 'audio':
-        endpoint = 'sendWhatsAppAudio';
-        break;
-      case 'document':
-        endpoint = 'sendMedia';
-        messageData.mediatype = 'document';
-        if (fileName) messageData.fileName = fileName;
-        if (caption) messageData.caption = caption;
-        break;
+    if (!status.exists) {
+      console.log('❌ Instância não existe, criando...');
+      await createInstance(instanceName);
     }
-
-    const response = await evolutionClient.post(`/message/${endpoint}/${INSTANCE_NAME}`, messageData);
     
-    console.log(`[Evolution] Mídia ${mediaType} enviada com sucesso`);
-    return response.data;
+    if (status.connected) {
+      console.log('✅ Instância já está conectada');
+      return { error: 'Instance already connected' };
+    }
+    
+    // Usa o endpoint correto para obter QR Code
+    console.log('🔄 Obtendo QR Code...');
+    const response = await api.get(`/instance/connect/${instanceName}`);
+    
+    console.log('📱 Resposta do QR Code:', {
+      hasCode: !!response.data.code,
+      hasPairingCode: !!response.data.pairingCode,
+      codeLength: response.data.code?.length || 0
+    });
+    
+    if (response.data.code) {
+      return {
+        qrCode: response.data.code,
+        pairingCode: response.data.pairingCode || undefined
+      };
+    }
+    
+    throw new Error('QR Code not available in response');
+    
   } catch (error: any) {
-    console.error(`[Evolution] Erro ao enviar mídia ${mediaType}:`, error.response?.data || error.message);
-    throw new Error(`Falha ao enviar mídia: ${error.response?.data?.message || error.message}`);
+    console.error('❌ Erro ao obter QR Code:', error.message);
+    return {
+      error: error.message || 'Failed to fetch QR code'
+    };
   }
 }
 
 /**
- * Configurar webhook para receber mensagens
+ * Cria uma nova instância
  */
-export async function setupWebhook(webhookUrl: string): Promise<void> {
+export async function createInstance(instanceName: string = INSTANCE_NAME): Promise<boolean> {
   try {
-    console.log(`[Evolution] Configurando webhook: ${webhookUrl}`);
+    console.log(`🆕 Criando instância: ${instanceName}`);
     
-    const webhookData = {
-      url: webhookUrl,
+    const payload = {
+      instanceName,
+      qrcode: true,
+      integration: "WHATSAPP-BAILEYS",
+      webhook: WEBHOOK_URL,
+      webhook_by_events: true,
       events: [
-        'MESSAGES_UPSERT',
-        'CONNECTION_UPDATE',
-        'QRCODE_UPDATED'
+        "APPLICATION_STARTUP",
+        "QRCODE_UPDATED",
+        "MESSAGES_UPSERT",
+        "MESSAGES_UPDATE",
+        "MESSAGES_DELETE",
+        "SEND_MESSAGE",
+        "CONTACTS_SET",
+        "CONTACTS_UPSERT",
+        "CONTACTS_UPDATE",
+        "PRESENCE_UPDATE",
+        "CHATS_SET",
+        "CHATS_UPSERT",
+        "CHATS_UPDATE",
+        "CHATS_DELETE",
+        "GROUPS_UPSERT",
+        "GROUP_UPDATE",
+        "GROUP_PARTICIPANTS_UPDATE",
+        "CONNECTION_UPDATE",
+        "CALL",
+        "NEW_JWT_TOKEN"
       ]
     };
-
-    const response = await evolutionClient.post(`/webhook/set/${INSTANCE_NAME}`, webhookData);
     
-    console.log('[Evolution] Webhook configurado com sucesso:', response.data);
+    const response = await api.post('/instance/create', payload);
+    console.log('✅ Instância criada com sucesso');
+    
+    return true;
   } catch (error: any) {
-    console.error('[Evolution] Erro ao configurar webhook:', error.response?.data || error.message);
-    throw new Error(`Falha ao configurar webhook: ${error.response?.data?.message || error.message}`);
+    console.error('❌ Erro ao criar instância:', error.message);
+    return false;
   }
 }
 
 /**
- * Processar webhook recebido da Evolution API
+ * Reconecta uma instância existente
  */
-export async function processWebhook(webhookData: any): Promise<void> {
+export async function reconnectInstance(instanceName: string = INSTANCE_NAME): Promise<QRCodeResponse> {
   try {
-    console.log('[Evolution] Processando webhook:', webhookData.event);
+    console.log(`🔄 Reconectando instância: ${instanceName}`);
     
-    switch (webhookData.event) {
-      case 'MESSAGES_UPSERT':
-        if (webhookData.data && webhookData.data.messages) {
-          for (const message of webhookData.data.messages) {
-            await processIncomingMessage(message);
-          }
-        }
-        break;
-        
-      case 'CONNECTION_UPDATE':
-        if (webhookData.data) {
-          console.log('[Evolution] Atualização de conexão:', webhookData.data);
-        }
-        break;
-        
-      case 'QRCODE_UPDATED':
-        if (webhookData.data && webhookData.data.qrcode) {
-          console.log('[Evolution] QR Code atualizado');
-        }
-        break;
-        
-      default:
-        console.log('[Evolution] Evento de webhook não tratado:', webhookData.event);
-    }
-  } catch (error) {
-    console.error('[Evolution] Erro ao processar webhook:', error);
-  }
-}
-
-/**
- * Processar mensagem recebida via webhook
- */
-async function processIncomingMessage(msg: EvolutionMessage): Promise<void> {
-  if (!supabaseClient) {
-    console.error('[Evolution] Cliente Supabase não inicializado');
-    return;
-  }
-
-  // Ignorar mensagens enviadas por nós
-  if (msg.key.fromMe) {
-    return;
-  }
-
-  const senderJid = msg.key.remoteJid;
-  if (!senderJid) return;
-
-  const senderNumber = senderJid.split('@')[0];
-  
-  // Buscar lead pelo número de telefone
-  const { data: lead } = await supabaseClient
-    .from('leads')
-    .select('id, user_id')
-    .or(`phone.eq.${senderNumber},phone.ilike.%${senderNumber}`)
-    .limit(1)
-    .single();
-    
-  if (!lead) {
-    console.log('[Evolution] Mensagem de número não cadastrado:', senderNumber);
-    return;
-  }
-
-  try {
-    let messageContent: string | null = null;
-    let mediaUrl: string | null = null;
-    let mimeType: string | null = null;
-    let messageType = 'text';
-
-    // Processar diferentes tipos de mensagem
-    if (msg.message.conversation) {
-      messageContent = msg.message.conversation;
-      messageType = 'text';
-    } else if (msg.message.extendedTextMessage) {
-      messageContent = msg.message.extendedTextMessage.text;
-      messageType = 'text';
-    } else if (msg.message.imageMessage) {
-      messageType = 'image';
-      messageContent = msg.message.imageMessage.caption || null;
-      mimeType = msg.message.imageMessage.mimetype;
-      mediaUrl = msg.message.imageMessage.url || null;
-    } else if (msg.message.videoMessage) {
-      messageType = 'video';
-      messageContent = msg.message.videoMessage.caption || null;
-      mimeType = msg.message.videoMessage.mimetype;
-      mediaUrl = msg.message.videoMessage.url || null;
-    } else if (msg.message.audioMessage) {
-      messageType = 'audio';
-      mimeType = msg.message.audioMessage.mimetype;
-      mediaUrl = msg.message.audioMessage.url || null;
-    } else if (msg.message.documentMessage) {
-      messageType = 'document';
-      messageContent = msg.message.documentMessage.caption || msg.message.documentMessage.fileName || null;
-      mimeType = msg.message.documentMessage.mimetype;
-      mediaUrl = msg.message.documentMessage.url || null;
-    }
-
-    // Salvar mensagem no banco
-    await supabaseClient.from('whatsapp_messages').insert({
-      lead_id: lead.id,
-      user_id: lead.user_id,
-      sender_jid: senderJid,
-      message_content: messageContent,
-      message_timestamp: new Date(msg.messageTimestamp * 1000),
-      message_id: msg.key.id,
-      is_from_lead: true,
-      message_type: messageType,
-      media_url: mediaUrl,
-      mime_type: mimeType,
-    });
-
-    console.log('[Evolution] Mensagem salva com sucesso para lead:', lead.id);
-
-  } catch (error) {
-    console.error('[Evolution] Erro ao processar mensagem:', error);
-  }
-}
-
-/**
- * Função para obter informações da instância
- */
-export async function getInstanceInfo(): Promise<any> {
-  try {
-    const response = await evolutionClient.get('/instance/fetchInstances');
-    
-    if (response.data && Array.isArray(response.data)) {
-      const instance = response.data.find((inst: any) => inst.instance?.instanceName === INSTANCE_NAME);
-      return instance || null;
+    // Primeiro faz logout para limpar a conexão
+    try {
+      await api.delete(`/instance/logout/${instanceName}`);
+      console.log('✅ Logout realizado');
+    } catch (logoutError) {
+      console.log('⚠️ Erro no logout (pode ser normal):', (logoutError as any).message);
     }
     
-    return null;
+    // Aguarda um pouco antes de tentar reconectar
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Obtém novo QR Code
+    return await fetchQRCode(instanceName);
+    
   } catch (error: any) {
-    console.error('[Evolution] Erro ao obter info da instância:', error.response?.data || error.message);
-    throw new Error(`Falha ao obter informações da instância: ${error.response?.data?.message || error.message}`);
+    console.error('❌ Erro ao reconectar instância:', error.message);
+    return {
+      error: error.message || 'Failed to reconnect instance'
+    };
   }
 }
 
 /**
- * Função para obter perfil do WhatsApp conectado
+ * Configura o webhook para uma instância
  */
-export async function getProfile(): Promise<any> {
+export async function setupWebhook(instanceName: string = INSTANCE_NAME): Promise<boolean> {
   try {
-    const response = await evolutionClient.get(`/chat/fetchProfile/${INSTANCE_NAME}`);
+    console.log(`🕷️ Configurando webhook para: ${instanceName}`);
+    
+    const payload = {
+      enabled: true,
+      url: WEBHOOK_URL,
+      events: [
+        "APPLICATION_STARTUP",
+        "QRCODE_UPDATED", 
+        "MESSAGES_UPSERT",
+        "MESSAGES_UPDATE",
+        "MESSAGES_DELETE",
+        "SEND_MESSAGE",
+        "CONTACTS_SET",
+        "CONTACTS_UPSERT",
+        "CONTACTS_UPDATE",
+        "PRESENCE_UPDATE",
+        "CHATS_SET",
+        "CHATS_UPSERT", 
+        "CHATS_UPDATE",
+        "CHATS_DELETE",
+        "GROUPS_UPSERT",
+        "GROUP_UPDATE",
+        "GROUP_PARTICIPANTS_UPDATE",
+        "CONNECTION_UPDATE",
+        "CALL",
+        "NEW_JWT_TOKEN"
+      ],
+      webhook_by_events: true
+    };
+    
+    const response = await api.post(`/webhook/set/${instanceName}`, payload);
+    console.log('✅ Webhook configurado com sucesso');
+    
+    return true;
+  } catch (error: any) {
+    console.error('❌ Erro ao configurar webhook:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Envia uma mensagem via WhatsApp
+ */
+export async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<any> {
+  try {
+    const instanceName = data.instanceName || INSTANCE_NAME;
+    console.log(`📤 Enviando mensagem via ${instanceName} para: ${data.phone}`);
+    
+    // Verifica se a instância está conectada
+    const status = await checkInstanceStatus(instanceName);
+    if (!status.connected) {
+      throw new Error('Instance not connected');
+    }
+    
+    const payload = {
+      number: data.phone,
+      text: data.message
+    };
+    
+    const response = await api.post(`/message/sendText/${instanceName}`, payload);
+    console.log('✅ Mensagem enviada com sucesso');
+    
+    // Retornar a resposta completa da API em vez de apenas true
     return response.data;
   } catch (error: any) {
-    console.error('[Evolution] Erro ao obter perfil:', error.response?.data || error.message);
-    return null;
-  }
-}
-
-// --- FUNÇÕES DE COMPATIBILIDADE PARA O CRM ---
-
-/**
- * Compatibilidade: função principal para enviar mensagens
- */
-export async function sendWhatsappMessage(to: string, content: any): Promise<any> {
-  if (typeof content === 'string') {
-    return await sendTextMessage(to, content);
-  } else if (content.text) {
-    return await sendTextMessage(to, content.text);
-  } else if (content.image) {
-    return await sendMediaMessage(to, content.image, 'image', content.caption);
-  } else if (content.video) {
-    return await sendMediaMessage(to, content.video, 'video', content.caption);
-  } else if (content.audio) {
-    return await sendMediaMessage(to, content.audio, 'audio');
-  } else if (content.document) {
-    return await sendMediaMessage(to, content.document, 'document', content.caption, content.fileName);
-  } else {
-    throw new Error('Tipo de mensagem não suportado');
+    console.error('❌ Erro ao enviar mensagem:', error.message);
+    throw error;
   }
 }
 
 /**
- * Função para obter status geral da conexão
+ * Verifica e configura webhook se necessário
  */
-export function getConnectionStatus() {
-  return {
-    service: 'Evolution API',
-    url: EVOLUTION_API_URL,
-    instance: INSTANCE_NAME,
-    version: '2.2.3'
-  };
-}
-
-// --- FUNÇÕES ADICIONAIS PARA COMPATIBILIDADE ---
-
-/**
- * Inicializar conexão WhatsApp (legacy compatibility)
- */
-export async function initializeWhatsAppConnection(): Promise<any> {
-  return await getConnectionState();
-}
-
-/**
- * Buscar QR Code (legacy compatibility)
- */
-export async function fetchQRCode(): Promise<string | null> {
+export async function ensureWebhookSetup(instanceName: string = INSTANCE_NAME): Promise<boolean> {
   try {
-    // Para Evolution API, o QR code vem de outro endpoint
-    const response = await evolutionClient.get(`/instance/connect/${INSTANCE_NAME}`);
-    return response.data?.qrcode?.code || null;
-  } catch (error) {
-    console.warn('[Evolution] Erro ao buscar QR Code:', error);
-    return null;
-  }
-}
-
-/**
- * Obter socket (legacy compatibility)
- */
-export function getSocket(): any {
-  // Evolution API não usa socket direto, retorna info da conexão
-  return {
-    user: null,
-    state: 'checking'
-  };
-}
-
-/**
- * Reset do estado de autenticação
- */
-export async function resetAuthState(): Promise<void> {
-  try {
-    // Tentar desconectar a instância
-    await evolutionClient.delete(`/instance/logout/${INSTANCE_NAME}`);
-    console.log('[Evolution] Estado de autenticação resetado');
-  } catch (error: any) {
-    console.warn('[Evolution] Erro ao resetar autenticação:', error.response?.data || error.message);
-  }
-}
-
-/**
- * Desconectar instância
- */
-export async function disconnect(): Promise<void> {
-  try {
-    await evolutionClient.delete(`/instance/logout/${INSTANCE_NAME}`);
-    console.log('[Evolution] Instância desconectada');
-  } catch (error: any) {
-    console.error('[Evolution] Erro ao desconectar:', error.response?.data || error.message);
-    throw new Error(`Falha ao desconectar: ${error.response?.data?.message || error.message}`);
-  }
-}
-
-/**
- * Verificar status da conexão (legacy compatibility)
- */
-export async function checkConnectionStatus(): Promise<any> {
-  return await getConnectionState();
-}
-
-/**
- * Conectar ao WhatsApp
- */
-export async function connectToWhatsApp(): Promise<any> {
-  try {
-    console.log('[Evolution] Iniciando conexão WhatsApp...');
+    console.log(`🔧 Verificando configuração do webhook para: ${instanceName}`);
     
-    // Verificar se a instância existe
-    const instanceStatus = await checkInstanceStatus();
-    
-    if (!instanceStatus.exists) {
-      // Criar instância se não existir
-      const createData = {
-        instanceName: INSTANCE_NAME,
-        token: EVOLUTION_API_KEY,
-        qrcode: true,
-        number: false,
-        webhook: true
-      };
+    // Verifica webhook atual
+    try {
+      const response = await api.get(`/webhook/find/${instanceName}`);
+      const webhook = response.data;
       
-      await evolutionClient.post('/instance/create', createData);
-      console.log('[Evolution] Instância criada:', INSTANCE_NAME);
+      if (webhook && webhook.enabled && webhook.url === WEBHOOK_URL) {
+        console.log('✅ Webhook já está configurado corretamente');
+        return true;
+      }
+    } catch (error) {
+      console.log('⚠️ Webhook não configurado, configurando...');
     }
     
-    // Conectar a instância
-    const response = await evolutionClient.post(`/instance/connect/${INSTANCE_NAME}`);
-    console.log('[Evolution] Comando de conexão enviado');
+    // Configura webhook
+    return await setupWebhook(instanceName);
     
-    return response.data;
   } catch (error: any) {
-    console.error('[Evolution] Erro ao conectar WhatsApp:', error.response?.data || error.message);
-    throw new Error(`Falha ao conectar: ${error.response?.data?.message || error.message}`);
+    console.error('❌ Erro ao verificar/configurar webhook:', error.message);
+    return false;
   }
 }
-
-// --- LOG DE INICIALIZAÇÃO ---
-console.log(`[Evolution] Serviço inicializado - URL: ${EVOLUTION_API_URL}, Instância: ${INSTANCE_NAME}`);

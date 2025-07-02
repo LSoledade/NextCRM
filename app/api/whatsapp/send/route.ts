@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { sendWhatsappMessage } from '@/lib/evolution.service';
+import { sendWhatsAppMessage } from '@/lib/evolution.service';
 import { createClient } from '@/utils/supabase/server';
 
 // Constantes para validação e segurança
@@ -277,7 +277,10 @@ export async function POST(request: NextRequest) {
     
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        sentMsg = await sendWhatsappMessage(to, messageContent);
+        sentMsg = await sendWhatsAppMessage({
+          phone: to,
+          message: messageContent
+        });
         if (sentMsg) break;
       } catch (error: any) {
         lastError = error;
