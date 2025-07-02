@@ -63,88 +63,63 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                     return;
                 }
 
-                // Query otimizada: buscar a última mensagem de cada lead que tem mensagens WhatsApp
-                const { data: chatData, error: chatError } = await supabase
-                    .rpc('get_whatsapp_chat_list_v2', { p_user_id: user.id });
+                // Query simplificada: buscar todas as mensagens e processar no frontend
+                const { data: allMessages, error: messagesError } = await supabase
+                    .from('whatsapp_messages')
+                    .select(`
+                        lead_id,
+                        message_content,
+                        message_timestamp,
+                        is_from_lead,
+                        leads!inner (
+                            id,
+                            name,
+                            phone,
+                            email,
+                            status,
+                            user_id,
+                            created_at,
+                            updated_at,
+                            company,
+                            source
+                        )
+                    `)
+                    .eq('user_id', user.id)
+                    .order('message_timestamp', { ascending: false });
 
-                if (chatError) {
-                    console.log('RPC não encontrada, usando query alternativa...', chatError);
-                    
-                    // Fallback: buscar todas as mensagens e processar no frontend
-                    const { data: allMessages, error: messagesError } = await supabase
-                        .from('whatsapp_messages')
-                        .select(`
-                            lead_id,
-                            message_content,
-                            message_timestamp,
-                            is_from_lead,
-                            leads!inner (
-                                id,
-                                name,
-                                phone,
-                                email,
-                                status,
-                                user_id,
-                                created_at,
-                                updated_at
-                            )
-                        `)
-                        .order('message_timestamp', { ascending: false });
-
-                    if (messagesError) {
-                        console.error('Erro ao buscar conversas:', messagesError);
-                        setError('Erro ao carregar conversas');
-                        return;
-                    }
-
-                    // Agrupar mensagens por lead_id e pegar a última mensagem de cada
-                    const leadMessagesMap = new Map<string, {
-                        lead: any;
-                        last_message: string;
-                        last_message_timestamp: string;
-                        is_from_lead: boolean;
-                    }>();
-
-                    allMessages?.forEach(msg => {
-                        const leadId = msg.lead_id;
-                        if (!leadMessagesMap.has(leadId)) {
-                            leadMessagesMap.set(leadId, {
-                                lead: msg.leads,
-                                last_message: msg.message_content || 'Mensagem sem conteúdo',
-                                last_message_timestamp: msg.message_timestamp,
-                                is_from_lead: msg.is_from_lead
-                            });
-                        }
-                    });
-
-                    // Converter Map para array e ordenar por timestamp da última mensagem
-                    const chatListData: ChatListItem[] = Array.from(leadMessagesMap.values())
-                        .sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
-
-                    setChatList(chatListData);
-                } else {
-                    // Se a RPC funcionou, processar os dados retornados
-                    const chatListData: ChatListItem[] = chatData?.map((item: any) => ({
-                        lead: {
-                            id: item.lead_id,
-                            name: item.lead_name,
-                            phone: item.lead_phone,
-                            email: item.lead_email,
-                            status: item.lead_status,
-                            user_id: item.lead_user_id,
-                            created_at: item.lead_created_at,
-                            updated_at: item.lead_updated_at,
-                            company: item.lead_company,
-                            source: item.lead_source
-                        },
-                        last_message: item.last_message_content || 'Mensagem sem conteúdo',
-                        last_message_timestamp: item.last_message_timestamp,
-                        is_from_lead: item.last_message_direction === 'incoming',
-                        unread_count: item.unread_count || 0
-                    })) || [];
-
-                    setChatList(chatListData);
+                if (messagesError) {
+                    console.error('Erro ao buscar conversas:', messagesError);
+                    setError('Erro ao carregar conversas');
+                    return;
                 }
+
+                // Agrupar mensagens por lead_id e pegar a última mensagem de cada
+                const leadMessagesMap = new Map<string, {
+                    lead: any;
+                    last_message: string;
+                    last_message_timestamp: string;
+                    is_from_lead: boolean;
+                    unread_count: number;
+                }>();
+
+                allMessages?.forEach(msg => {
+                    const leadId = msg.lead_id;
+                    if (!leadMessagesMap.has(leadId)) {
+                        leadMessagesMap.set(leadId, {
+                            lead: msg.leads,
+                            last_message: msg.message_content || 'Mensagem sem conteúdo',
+                            last_message_timestamp: msg.message_timestamp,
+                            is_from_lead: msg.is_from_lead,
+                            unread_count: 0 // TODO: Implementar contagem de não lidas
+                        });
+                    }
+                });
+
+                // Converter Map para array e ordenar por timestamp da última mensagem
+                const chatListData: ChatListItem[] = Array.from(leadMessagesMap.values())
+                    .sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
+
+                setChatList(chatListData);
             } catch (error) {
                 console.error('Erro ao buscar lista de conversas:', error);
                 setError('Erro de conexão');

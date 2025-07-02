@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, Paperclip, FileText, AlertCircle, MoreVertical, Phone, Video } from 'lucide-react';
+import { Send, Paperclip, FileText, MoreVertical, Phone, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
@@ -40,47 +40,6 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     default: 
       return null;
   }
-};
-
-const ConnectionStatus = () => {
-  const [status, setStatus] = useState({ type: 'loading', qr: null });
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const res = await fetch('/api/whatsapp/status');
-        const data = await res.json();
-        setStatus({ type: data.status, qr: data.qr });
-      } catch {
-        setStatus({ type: 'error', qr: null });
-      }
-    };
-
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (status.type === 'connected') return null;
-
-  return (
-    <div className="px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400">
-      <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
-        <AlertCircle className="w-5 h-5" />
-        <span className="font-medium">WhatsApp Desconectado</span>
-      </div>
-      {status.qr && (
-        <div className="mt-3 flex justify-center">
-          <Image src={status.qr} alt="Escaneie para conectar" width={200} height={200} className="rounded-lg" />
-        </div>
-      )}
-      {!status.qr && status.type !== 'loading' && (
-        <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-          Aguardando conexão... Verifique o terminal do servidor se o QR Code não aparecer aqui.
-        </p>
-      )}
-    </div>
-  );
 };
 
 function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
@@ -170,22 +129,51 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newMessage.trim() && !file) || !lead?.phone) return;
+    if ((!newMessage.trim() && !file) || !lead?.phone || sending) return;
 
     setSending(true);
-    const formData = new FormData();
-    formData.append('to', lead.phone);
-    formData.append('lead_id', lead.id);
-    if (newMessage.trim()) formData.append('text', newMessage.trim());
-    if (file) formData.append('file', file);
-
+    
     try {
-      await fetch('/api/whatsapp/send', { method: 'POST', body: formData });
+      const formData = new FormData();
+      formData.append('to', lead.phone);
+      formData.append('lead_id', lead.id);
+      
+      if (newMessage.trim()) {
+        formData.append('text', newMessage.trim());
+      }
+      
+      if (file) {
+        formData.append('file', file);
+      }
+
+      const response = await fetch('/api/whatsapp/send', { 
+        method: 'POST', 
+        body: formData 
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao enviar mensagem');
+      }
+
+      // Limpar campos apenas se a mensagem foi enviada com sucesso
       setNewMessage('');
       setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (error) {
-      console.error("Erro ao enviar:", error);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      // Focar no input novamente
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+
+    } catch (error: any) {
+      console.error("Erro ao enviar mensagem:", error);
+      
+      // Mostrar erro para o usuário (você pode implementar um toast aqui)
+      alert(`Erro ao enviar mensagem: ${error.message}`);
     } finally {
       setSending(false);
     }
@@ -196,6 +184,44 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
       hour: '2-digit', 
       minute: '2-digit' 
     });
+  };
+
+  // Função para lidar com seleção de arquivos
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    // Verificar tamanho do arquivo (50MB max)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (selectedFile.size > maxSize) {
+      alert('Arquivo muito grande. Máximo permitido: 50MB');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
+    // Verificar tipos permitidos
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm',
+      'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4',
+      'application/pdf', 
+      'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+
+    if (!allowedTypes.includes(selectedFile.type)) {
+      alert(`Tipo de arquivo não suportado: ${selectedFile.type}`);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
+    setFile(selectedFile);
   };
 
   if (!leadId) {
@@ -281,9 +307,6 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
         </div>
       </div>
 
-      {/* Connection Status */}
-      <ConnectionStatus />
-
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-gradient-to-b from-muted/30 to-muted/10">
         {messages.length === 0 ? (
@@ -344,7 +367,7 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
         <input
           type="file"
           ref={fileInputRef}
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          onChange={handleFileSelect}
           className="hidden"
           accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
         />

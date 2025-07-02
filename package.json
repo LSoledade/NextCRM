@@ -9,8 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@adiwajshing/keyed-db": "^0.2.4",
-    "@hapi/boom": "^10.0.1",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
@@ -50,8 +48,8 @@
     "@types/react-dom": "18.2.7",
     "@types/uuid": "^10.0.0",
     "@vercel/kv": "^3.0.0",
-    "@whiskeysockets/baileys": "^6.7.18",
     "autoprefixer": "10.4.15",
+    "axios": "^1.10.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -66,7 +64,6 @@
     "next": "^15.3.4",
     "next-themes": "^0.3.0",
     "papaparse": "^5.5.3",
-    "pino": "^9.7.0",
     "postcss": "^8.5.6",
     "qrcode": "^1.5.4",
     "react": "18.2.0",

@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { sendWhatsappMessage } from '@/lib/baileys.service';
+import { sendWhatsappMessage } from '@/lib/evolution.service';
 import { createClient } from '@/utils/supabase/server';
 
 // Constantes para validação e segurança

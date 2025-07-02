@@ -1,6 +1,18 @@
-// app/api/whatsapp/connection/route.ts - VERSÃO OTIMIZADA
+// app/api/whatsapp/connection/route.ts - VERSÃO EVOLUTION API
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToWhatsApp, getQRCode, getSocket, initializeSupabaseClient, resetAuthState } from '@/lib/baileys.service';
+import { 
+  initializeWhatsAppConnection,
+  fetchQRCode, 
+  getSocket, 
+  initializeSupabaseClient, 
+  resetAuthState,
+  disconnect,
+  checkConnectionStatus,
+  getConnectionStatus,
+  getConnectionState,
+  setupWebhook,
+  connectToWhatsApp
+} from '@/lib/evolution.service';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@/utils/supabase/server';
 
@@ -32,7 +44,7 @@ export async function GET(request: NextRequest) {
     
     user = authUser;
 
-    // Inicializar cliente Supabase no baileys.service
+    // Inicializar cliente Supabase no evolution.service
     initializeSupabaseClient(supabaseServer);
 
     // Verificar se já existe uma conexão ativa
@@ -55,25 +67,45 @@ export async function GET(request: NextRequest) {
     // Se não estiver conectado, tentar conectar
     if (status === 'connecting') {
       try {
+        // Configurar webhook automaticamente
+        const webhookUrl = `${request.nextUrl.origin}/api/whatsapp/webhook`;
+        console.log(`[Evolution] Configurando webhook: ${webhookUrl}`);
+        
+        try {
+          await setupWebhook(webhookUrl);
+          console.log('[Evolution] Webhook configurado com sucesso');
+        } catch (webhookError: any) {
+          console.warn('[Evolution] Erro ao configurar webhook (continuando):', webhookError.message);
+        }
+        
         // Usar timeout para evitar operações que ficam "presas"
         await withTimeout(connectToWhatsApp(), WHATSAPP_OPERATION_TIMEOUT);
         
-        // Verificar se temos QR code ou se já está conectado
-        qrCode = getQRCode();
+        // Verificar status atualizado da conexão usando getConnectionState
+        const connectionState = await getConnectionState();
+        status = connectionState.state;
         
-        try {
-          socket = getSocket();
-          if (socket && socket.user) {
-            status = 'connected';
-            whatsappUser = socket.user;
-            qrCode = null; // Limpar QR se já conectado
-          } else if (qrCode) {
-            status = 'qr_ready';
+        // Para QR Code, precisamos usar uma abordagem diferente na Evolution API
+        // O QR code geralmente vem via webhook ou endpoint específico
+        if (status === 'open') {
+          status = 'connected';
+          qrCode = null; // Limpar QR se já conectado
+          try {
+            socket = getSocket();
+            whatsappUser = socket;
+          } catch {
+            // Socket não disponível, mas status é connected
           }
-        } catch {
-          // Socket ainda não está pronto
-          if (qrCode) {
-            status = 'qr_ready';
+        } else if (status === 'close') {
+          status = 'connecting';
+          // Tentar obter QR Code se ainda conectando
+          try {
+            qrCode = await withTimeout(fetchQRCode(), WHATSAPP_OPERATION_TIMEOUT);
+            if (qrCode) {
+              status = 'qr_ready';
+            }
+          } catch (error: any) {
+            console.warn('Erro ao obter QR Code:', error.message);
           }
         }
       } catch (error: any) {
@@ -139,7 +171,7 @@ export async function POST(request: NextRequest) {
     
     user = authUser;
 
-    // Inicializar cliente Supabase no baileys.service
+    // Inicializar cliente Supabase no evolution.service
     initializeSupabaseClient(supabaseServer);
 
     const { action } = await request.json();
@@ -167,8 +199,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'disconnect') {
       try {
-        const socket = getSocket();
-        await withTimeout(socket.logout(), WHATSAPP_OPERATION_TIMEOUT);
+        await withTimeout(disconnect(), WHATSAPP_OPERATION_TIMEOUT);
         
         await updateConnectionStatus(user.id, 'disconnected');
 
@@ -202,7 +233,21 @@ export async function POST(request: NextRequest) {
         // Tentar conectar com timeout
         await withTimeout(connectToWhatsApp(), WHATSAPP_OPERATION_TIMEOUT);
         
-        const qrCode = getQRCode();
+        // Verificar status e obter QR Code se necessário
+        const connectionState = await getConnectionState();
+        let qrCode = null;
+        
+        if (connectionState.state === 'open') {
+          // Já conectado
+          await updateConnectionStatus(user.id, 'connected');
+        } else {
+          // Tentar obter QR Code
+          try {
+            qrCode = await withTimeout(fetchQRCode(), WHATSAPP_OPERATION_TIMEOUT);
+          } catch (error: any) {
+            console.warn('Erro ao obter QR Code durante reconexão:', error.message);
+          }
+        }
         
         // Atualizar com QR code se disponível
         if (qrCode) {
@@ -211,7 +256,7 @@ export async function POST(request: NextRequest) {
         
         return NextResponse.json({
           success: true,
-          status: qrCode ? 'qr_ready' : 'connecting',
+          status: qrCode ? 'qr_ready' : (connectionState.state === 'open' ? 'connected' : 'connecting'),
           qrCode: qrCode
         });
       } catch (error: any) {
@@ -261,22 +306,27 @@ async function updateConnectionStatus(
     // Usar o cliente servidor com autenticação adequada
     const supabaseServer = await createClient();
     
-    // Usar a função upsert segura que evitará conflitos de chave duplicada
-    const { data, error } = await supabaseServer.rpc('upsert_whatsapp_connection_v2', {
-      p_user_id: userId,
-      p_status: status,
-      p_qr_code: qrCode,
-      p_whatsapp_user: whatsappUser,
-      p_phone_number: whatsappUser?.id || null,
-      p_connected_at: status === 'connected' ? new Date().toISOString() : null,
-      p_disconnected_at: status === 'disconnected' ? new Date().toISOString() : null,
-      p_error_message: errorMessage
-    });
+    // Usar upsert diretamente na tabela em vez de RPC
+    const { data, error } = await supabaseServer
+      .from('whatsapp_connections')
+      .upsert({
+        user_id: userId,
+        status: status,
+        qr_code: qrCode,
+        whatsapp_user: whatsappUser,
+        phone_number: whatsappUser?.id || null,
+        connected_at: status === 'connected' ? new Date().toISOString() : null,
+        disconnected_at: status === 'disconnected' ? new Date().toISOString() : null,
+        error_message: errorMessage,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
 
     if (error) {
       console.error('Erro ao atualizar status no banco:', error);
     } else {
-      console.log('Status WhatsApp atualizado com sucesso:', data);
+      console.log('Status WhatsApp atualizado com sucesso:', status);
     }
   } catch (error) {
     console.error('Erro ao conectar com banco para atualizar status:', error);

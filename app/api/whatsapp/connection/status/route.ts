@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getQRCode, getSocket } from '@/lib/baileys.service';
+import { getQRCode, getSocket } from '@/lib/evolution.service';
 
 export async function GET(request: NextRequest) {
   // Set up SSE headers

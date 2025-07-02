@@ -23,7 +23,7 @@ BEGIN
     RETURN;
   END IF;
   
-  -- Test the function call with all parameters (as called from Baileys)
+  -- Test the function call with all parameters (as called from Evolution API)
   SELECT upsert_whatsapp_connection_v2(
     test_user_id,
     'qr_ready',

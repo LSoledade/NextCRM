@@ -93,7 +93,6 @@ function ConnectionStatus() {
           bgColor: 'bg-green-50 dark:bg-green-950/20'
         };
       case 'connecting':
-      case 'qr_ready':
         return {
           icon: Settings,
           text: 'Conectando...',
@@ -144,36 +143,6 @@ export default function WhatsappPage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('chats');
   const { connectionStatus } = useWhatsAppConnection();
-
-  // Verificar se a funcionalidade está disponível
-  const isWhatsAppAvailable = connectionStatus.status !== 'error' || 
-    !connectionStatus.error?.includes('Redis');
-
-  if (!isWhatsAppAvailable) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Card className="max-w-md">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-                WhatsApp Indisponível
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Alert variant="destructive">
-                <AlertDescription>
-                  O serviço WhatsApp está temporariamente indisponível devido a problemas 
-                  de conectividade com o Redis. Por favor, tente novamente mais tarde ou 
-                  contate o administrador do sistema.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-        </div>
-      </AppLayout>
-    );
-  }
 
   return (
     <ErrorBoundary fallbackMessage="Erro na página do WhatsApp">
