@@ -3,11 +3,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/client';
+import { UserRole } from '@/types/roles';
 
 const supabase = createClient();
 
 interface ExtendedUser extends User {
-  role?: 'admin' | 'user'; // A role agora vem do user_metadata
+  role?: UserRole; // A role agora vem do user_metadata
 }
 
 interface AuthContextType {
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (authUser) {
           // A role agora é lida diretamente do user_metadata
-          setUser({ ...authUser, role: authUser.user_metadata?.role as 'admin' | 'user' || 'user' });
+          setUser({ ...authUser, role: authUser.user_metadata?.role as UserRole || 'professor' });
         } else {
           setUser(null);
         }
@@ -55,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(true);
         const authUser = session?.user ?? null;
         if (authUser) {
-          setUser({ ...authUser, role: authUser.user_metadata?.role as 'admin' | 'user' || 'user' });
+          setUser({ ...authUser, role: authUser.user_metadata?.role as UserRole || 'professor' });
         } else {
           setUser(null);
         }

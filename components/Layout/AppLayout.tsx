@@ -35,6 +35,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from "@/lib/utils";
+import Link from 'next/link';
 
 // Constants
 const SIDEBAR_EXPANDED_WIDTH = 240;
@@ -104,6 +105,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
     if (pathname === '/profile') {
       return 'Perfil';
+    }
+    if (pathname === '/settings') {
+      return 'Configurações';
     }
     
     return 'CRM Personal Trainer';
@@ -266,50 +270,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="dropdown-fix">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full ring-2 ring-transparent hover:ring-accent/20 transition-all duration-200"
-          >
-            <Avatar className="h-9 w-9">
-              <AvatarImage 
-                src={user?.user_metadata?.avatar_url || undefined} 
-                alt={user?.user_metadata?.name || user?.email || 'User'} 
-              />
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                {userInitials || <UserCircle className="h-5 w-5" />}
-              </AvatarFallback>
-            </Avatar>
-          </Button>
+          <Avatar className="cursor-pointer">
+            <AvatarImage src={user?.user_metadata?.avatar_url} />
+            <AvatarFallback>{userInitials}</AvatarFallback>
+          </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent 
-          align="end" 
-          className="w-56 dropdown-enter" 
-          sideOffset={8}
-          avoidCollisions={true}
-          collisionPadding={8}
-        >
-          <DropdownMenuLabel className="font-semibold">
-            {user?.user_metadata?.name || user?.email?.split('@')[0] || 'Minha Conta'}
-          </DropdownMenuLabel>
-          {user?.email && (
-            <p className="px-2 pb-2 text-sm text-muted-foreground">
-              {user.email}
-            </p>
-          )}
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem 
-            onClick={() => router.push('/profile')}
-            className="cursor-pointer"
-          >
-            <UserCircle className="h-4 w-4 mr-3" />
-            Perfil
+          <DropdownMenuItem asChild>
+            <Link href="/settings">Configurações</Link>
           </DropdownMenuItem>
+          <DropdownMenuItem>Suporte</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem 
-            onClick={handleLogout}
-            className="cursor-pointer text-destructive focus:text-destructive"
-          >
+          <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
             <LogOut className="h-4 w-4 mr-3" />
             Sair
           </DropdownMenuItem>
