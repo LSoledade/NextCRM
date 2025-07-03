@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processWebhook } from '@/lib/evolution.service';
 
-export async function POST(request: NextRequest, { params }: { params: { event: string[] } }) {
+export async function POST(
+  request: NextRequest, 
+  { params }: { params: Promise<{ event: string[] }> }
+) {
   try {
+    const resolvedParams = await params;
     const webhookData = await request.json();
-    const eventPath = params.event?.join('-') || 'unknown';
+    const eventPath = resolvedParams.event?.join('-') || 'unknown';
     
     console.log('[Webhook Catch-All] 📥 =================================');
     console.log('[Webhook Catch-All] 📥 DADOS RECEBIDOS NA SUBROTA:');
@@ -14,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: { event: 
     console.log('[Webhook Catch-All] 📥 =================================');
     
     // Se o evento não estiver presente no payload, extrair do path
-    if (!webhookData.event && params.event?.length) {
+    if (!webhookData.event && resolvedParams.event?.length) {
       webhookData.event = eventPath;
       console.log(`[Webhook Catch-All] 📝 Evento extraído do path: ${eventPath}`);
     }
@@ -67,8 +71,12 @@ export async function POST(request: NextRequest, { params }: { params: { event: 
 }
 
 // Permitir apenas POST para consistência com o webhook principal
-export async function GET(request: NextRequest, { params }: { params: { event: string[] } }) {
-  const eventPath = params.event?.join('-') || 'unknown';
+export async function GET(
+  request: NextRequest, 
+  { params }: { params: Promise<{ event: string[] }> }
+) {
+  const resolvedParams = await params;
+  const eventPath = resolvedParams.event?.join('-') || 'unknown';
   
   console.log(`[Webhook Catch-All] ℹ️ Tentativa de acesso GET ao webhook: ${eventPath}`);
   
@@ -84,8 +92,12 @@ export async function GET(request: NextRequest, { params }: { params: { event: s
 }
 
 // Adicionar suporte para OPTIONS para debugging
-export async function OPTIONS(request: NextRequest, { params }: { params: { event: string[] } }) {
-  const eventPath = params.event?.join('-') || 'unknown';
+export async function OPTIONS(
+  request: NextRequest, 
+  { params }: { params: Promise<{ event: string[] }> }
+) {
+  const resolvedParams = await params;
+  const eventPath = resolvedParams.event?.join('-') || 'unknown';
   
   return NextResponse.json(
     { 
