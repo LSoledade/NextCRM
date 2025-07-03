@@ -107,9 +107,21 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
         table: 'whatsapp_messages',
         filter: `lead_id=eq.${leadId}`
       }, (payload) => {
+        console.log('🔔 Nova mensagem recebida via Realtime:', payload.new);
         setMessages((prev) => [...prev, payload.new]);
       })
-      .subscribe();
+      .on<Message>('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'whatsapp_messages',
+        filter: `lead_id=eq.${leadId}`
+      }, (payload) => {
+        console.log('🔄 Mensagem atualizada via Realtime:', payload.new);
+        setMessages((prev) => prev.map(msg => msg.id === payload.new.id ? payload.new : msg));
+      })
+      .subscribe((status) => {
+        console.log(`📡 Status da subscription ChatView (${leadId}):`, status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -170,10 +182,14 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
       }
 
     } catch (error: any) {
-      console.error("Erro ao enviar mensagem:", error);
+      console.error("❌ Erro ao enviar mensagem:", error);
       
-      // Mostrar erro para o usuário (você pode implementar um toast aqui)
-      alert(`Erro ao enviar mensagem: ${error.message}`);
+      // Melhor feedback de erro para o usuário
+      const errorMessage = error.message || 'Erro desconhecido ao enviar mensagem';
+      
+      // Aqui você pode implementar um sistema de toast mais elegante
+      // Por enquanto, usaremos alert com mensagem mais clara
+      alert(`Erro ao enviar mensagem: ${errorMessage}`);
     } finally {
       setSending(false);
     }

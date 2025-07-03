@@ -516,7 +516,11 @@ export async function getConnectionState(instanceName: string = INSTANCE_NAME): 
  */
 export async function processWebhook(webhookData: any): Promise<void> {
   try {
-    console.log('📥 Processando webhook:', webhookData.event);
+    console.log('📥 ===== PROCESSANDO WEBHOOK =====');
+    console.log('📥 Evento:', webhookData.event);
+    console.log('📥 Instância:', webhookData.instance);
+    console.log('📥 Dados completos:', JSON.stringify(webhookData, null, 2));
+    console.log('📥 ================================');
 
     // Processa diferentes tipos de eventos
     switch (webhookData.event) {
@@ -529,11 +533,22 @@ export async function processWebhook(webhookData: any): Promise<void> {
         break;
 
       case 'MESSAGES_UPSERT':
-        console.log('📨 Nova mensagem recebida');
+        console.log('📨 🎯 EVENTO PRINCIPAL - Nova mensagem recebida');
+        console.log('📨 DADOS COMPLETOS DA MENSAGEM:');
+        console.log(JSON.stringify(webhookData.data, null, 2));
+        
         if (webhookData.data?.messages && Array.isArray(webhookData.data.messages)) {
+          console.log(`📨 Processando ${webhookData.data.messages.length} mensagens`);
           for (const message of webhookData.data.messages) {
             await processIncomingMessage(message, webhookData.instance);
           }
+        } else {
+          console.warn('⚠️ Webhook MESSAGES_UPSERT sem mensagens válidas:', {
+            hasData: !!webhookData.data,
+            hasMessages: !!webhookData.data?.messages,
+            messagesIsArray: Array.isArray(webhookData.data?.messages),
+            messagesLength: webhookData.data?.messages?.length || 0
+          });
         }
         break;
 
@@ -542,7 +557,22 @@ export async function processWebhook(webhookData: any): Promise<void> {
         break;
 
       case 'MESSAGES_UPDATE':
-        console.log('📝 Mensagem atualizada');
+      case 'messages.update':
+        console.log('📝 🔄 EVENTO DE UPDATE - Mensagem atualizada (lida/entregue)');
+        console.log('📝 Dados do update:', JSON.stringify(webhookData.data, null, 2));
+        
+        // Este é o evento que está chegando para mensagens lidas
+        // Por enquanto só logamos, mas podemos implementar update de status
+        if (webhookData.data && Array.isArray(webhookData.data)) {
+          for (const updateData of webhookData.data) {
+            console.log('📝 Update individual:', {
+              messageId: updateData.key?.id,
+              from: updateData.key?.remoteJid,
+              status: updateData.update?.status,
+              timestamp: updateData.update?.statusTimestamp
+            });
+          }
+        }
         break;
 
       case 'MESSAGES_DELETE':
@@ -554,7 +584,21 @@ export async function processWebhook(webhookData: any): Promise<void> {
         break;
 
       case 'CHATS_UPSERT':
-        console.log('💬 Chats atualizados');
+      case 'chats.upsert':
+        console.log('💬 🔄 EVENTO DE CHAT - Chats atualizados');
+        console.log('💬 Dados do chat:', JSON.stringify(webhookData.data, null, 2));
+        
+        // Este evento também está chegando, pode conter informações úteis
+        if (webhookData.data && Array.isArray(webhookData.data)) {
+          for (const chatData of webhookData.data) {
+            console.log('💬 Chat individual:', {
+              id: chatData.id,
+              name: chatData.name,
+              unreadCount: chatData.unreadCount,
+              lastMessageTimestamp: chatData.conversationTimestamp
+            });
+          }
+        }
         break;
 
       case 'APPLICATION_STARTUP':
@@ -566,12 +610,14 @@ export async function processWebhook(webhookData: any): Promise<void> {
         break;
 
       default:
-        console.log(`⚠️ Evento não processado: ${webhookData.event}`);
+        console.log(`⚠️ ❌ EVENTO NÃO PROCESSADO: ${webhookData.event}`);
+        console.log('⚠️ Dados do evento desconhecido:', JSON.stringify(webhookData, null, 2));
         break;
     }
 
   } catch (error: any) {
     console.error('❌ Erro ao processar webhook:', error.message);
+    console.error('❌ Stack trace:', error.stack);
     throw error;
   }
 }
@@ -581,14 +627,33 @@ export async function processWebhook(webhookData: any): Promise<void> {
  */
 async function processIncomingMessage(message: any, instanceName: string): Promise<void> {
   try {
+    console.log('📨 ===== INÍCIO PROCESSAMENTO MENSAGEM =====');
+    console.log('📨 DADOS COMPLETOS DA MENSAGEM:');
+    console.log(JSON.stringify(message, null, 2));
+    console.log('📨 ==========================================');
+    
     console.log('📨 Processando mensagem recebida:', {
       messageId: message.key?.id,
       from: message.key?.remoteJid,
       timestamp: message.messageTimestamp,
       messageType: message.message ? Object.keys(message.message)[0] : 'unknown',
       pushName: message.pushName,
-      notifyName: message.notifyName
+      notifyName: message.notifyName,
+      hasMessage: !!message.message,
+      messageKeys: message.message ? Object.keys(message.message) : []
     });
+
+    // Verificar se é uma mensagem que devemos processar
+    if (!message.key?.remoteJid) {
+      console.warn('⚠️ Mensagem sem remoteJid, pulando processamento');
+      return;
+    }
+
+    // Filtrar mensagens do próprio bot ou mensagens de status
+    if (message.key.remoteJid.includes('status@broadcast')) {
+      console.log('📄 Mensagem de status, pulando processamento');
+      return;
+    }
 
     // Extrair informações da mensagem
     const messageId = message.key?.id;

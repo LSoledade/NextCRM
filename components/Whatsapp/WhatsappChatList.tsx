@@ -69,9 +69,9 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                 console.log('✅ Usuário autenticado:', user.id);
 
                 // Primeiro, tentar usar a função SQL otimizada
-                console.log('🔍 Tentando usar função get_whatsapp_conversations...');
+                console.log('🔍 Tentando usar função get_whatsapp_chat_list_v2...');
                 const { data: conversationsFromFunction, error: functionError } = await supabase
-                    .rpc('get_whatsapp_conversations', { p_user_id: user.id });
+                    .rpc('get_whatsapp_chat_list_v2', { p_user_id: user.id });
 
                 if (conversationsFromFunction && !functionError && conversationsFromFunction.length > 0) {
                     console.log('✅ Conversas obtidas via função SQL:', conversationsFromFunction.length);
@@ -81,17 +81,17 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                             id: conv.lead_id,
                             name: conv.lead_name,
                             phone: conv.lead_phone,
-                            email: conv.lead_email,
+                            email: null, // Email não é retornado pela função SQL
                             status: conv.lead_status,
-                            user_id: conv.user_id,
-                            created_at: conv.lead_created_at,
-                            updated_at: conv.lead_updated_at,
+                            user_id: user.id,
+                            created_at: null,
+                            updated_at: null,
                             company: conv.lead_company,
                             source: conv.lead_source
                         },
                         last_message: conv.last_message_content || 'Mensagem sem conteúdo',
                         last_message_timestamp: conv.last_message_timestamp,
-                        is_from_lead: conv.last_message_is_from_lead,
+                        is_from_lead: conv.last_message_direction === 'incoming',
                         unread_count: conv.unread_count || 0
                     }));
 
@@ -166,6 +166,60 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                 setChatList(chatListData);
                 console.log('✅ Lista de conversas atualizada via query manual:', chatListData.length);
                 
+                // Configurar subscription para atualizações em tempo real APÓS carregar os dados
+                console.log('🔔 Configurando subscription Realtime para whatsapp_messages...');
+                
+                const subscription = supabase
+                    .channel('whatsapp_messages_changes')
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: 'INSERT',
+                            schema: 'public',
+                            table: 'whatsapp_messages',
+                            filter: `user_id=eq.${user.id}` // Filtrar apenas mensagens do usuário atual
+                        },
+                        (payload) => {
+                            console.log('🔔 Nova mensagem WhatsApp via Realtime:', payload);
+                            // Atualizar apenas se for uma mensagem nova (não recarregar toda a lista)
+                            const newMessage = payload.new;
+                            if (newMessage && newMessage.lead_id) {
+                                // Atualizar apenas a conversa específica
+                                setChatList(prev => {
+                                    const leadExists = prev.some(chat => chat.lead.id === newMessage.lead_id);
+                                    if (leadExists) {
+                                        // Atualizar conversa existente
+                                        return prev.map(chat => {
+                                            if (chat.lead.id === newMessage.lead_id) {
+                                                return {
+                                                    ...chat,
+                                                    last_message: newMessage.message_content || 'Mensagem sem conteúdo',
+                                                    last_message_timestamp: newMessage.message_timestamp,
+                                                    is_from_lead: newMessage.is_from_lead,
+                                                    unread_count: newMessage.is_from_lead ? (chat.unread_count || 0) + 1 : 0
+                                                };
+                                            }
+                                            return chat;
+                                        }).sort((a, b) => new Date(b.last_message_timestamp).getTime() - new Date(a.last_message_timestamp).getTime());
+                                    } else {
+                                        // Nova conversa - recarregar apenas neste caso
+                                        fetchChatList();
+                                        return prev;
+                                    }
+                                });
+                            }
+                        }
+                    )
+                    .subscribe((status) => {
+                        console.log('📡 Status da subscription Realtime:', status);
+                    });
+
+                // Retornar função de cleanup
+                return () => {
+                    console.log('🔌 Desconectando subscription Realtime...');
+                    subscription.unsubscribe();
+                };
+                
             } catch (error) {
                 console.error('❌ Erro ao buscar lista de conversas:', error);
                 setError('Erro de conexão');
@@ -175,33 +229,6 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
         };
 
         fetchChatList();
-
-        // Configurar subscription para atualizações em tempo real
-        console.log('🔔 Configurando subscription Realtime para whatsapp_messages...');
-        
-        const subscription = supabase
-            .channel('whatsapp_messages_changes')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'whatsapp_messages'
-                },
-                (payload) => {
-                    console.log('🔔 Mensagem WhatsApp atualizada via Realtime:', payload);
-                    // Recarregar lista quando houver mudanças
-                    fetchChatList();
-                }
-            )
-            .subscribe((status) => {
-                console.log('📡 Status da subscription Realtime:', status);
-            });
-
-        return () => {
-            console.log('🔌 Desconectando subscription Realtime...');
-            subscription.unsubscribe();
-        };
     }, []);
 
     const filteredChats = chatList.filter(chat =>

@@ -5,11 +5,19 @@ export async function POST(request: NextRequest) {
   try {
     const webhookData = await request.json();
     
+    console.log('[Webhook] 📥 =================================');
+    console.log('[Webhook] 📥 DADOS COMPLETOS DO WEBHOOK:');
+    console.log('[Webhook] 📥 =================================');
+    console.log(JSON.stringify(webhookData, null, 2));
+    console.log('[Webhook] 📥 =================================');
+    
     console.log('[Webhook] 📥 Dados recebidos da Evolution API:', {
       event: webhookData.event,
       instance: webhookData.instance,
       timestamp: new Date().toISOString(),
-      hasData: !!webhookData.data
+      hasData: !!webhookData.data,
+      dataType: typeof webhookData.data,
+      dataKeys: webhookData.data ? Object.keys(webhookData.data) : []
     });
 
     // Validar se o webhook contém dados essenciais

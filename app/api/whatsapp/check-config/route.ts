@@ -71,3 +71,22 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    // Adicione este log:
+    const rawBody = await request.text();
+    console.log('[Webhook] RAW BODY:', rawBody);
+
+    // Depois, parse normalmente:
+    const webhookData = JSON.parse(rawBody);
+
+    // ... resto do seu código ...
+  } catch (error: any) {
+    console.error('❌ Erro ao processar webhook:', error);
+    return NextResponse.json({ 
+      error: 'Erro ao processar webhook',
+      details: error.message 
+    }, { status: 500 });
+  }
+}
