@@ -52,43 +52,69 @@ const getRoleIcon = (role: UserRole) => {
 };
 
 const LoadingSkeleton = () => (
-  <div className="space-y-6">
+  <div className="space-y-10">
     {/* Header Skeleton */}
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-48" />
-        <Skeleton className="h-4 w-80" />
+    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-8">
+      <div className="space-y-4">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-6 w-24 rounded-full" />
+        </div>
+        <Skeleton className="h-5 w-full max-w-3xl" />
       </div>
-      <Skeleton className="h-10 w-40" />
+      <Skeleton className="h-12 w-48" />
     </div>
     
     {/* Search and Filter Skeleton */}
-    <div className="flex flex-col sm:flex-row gap-4">
-      <Skeleton className="h-10 flex-1 max-w-sm" />
-      <Skeleton className="h-10 w-32" />
+    <div className="flex flex-col sm:flex-row gap-6">
+      <Skeleton className="h-12 flex-1 max-w-md" />
+      <Skeleton className="h-12 w-48" />
     </div>
     
-    {/* Cards Skeleton */}
+    {/* Team Stats Skeleton */}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      {[...Array(4)].map((_, i) => (
+        <Card key={i} className="p-6">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-10 rounded-xl" />
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-12" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+    
+    {/* Main Card Skeleton */}
     <Card>
-      <CardHeader>
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-4 w-64" />
+      <CardHeader className="pb-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-6 w-6" />
+              <Skeleton className="h-6 w-40" />
+            </div>
+            <Skeleton className="h-5 w-80" />
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="divide-y">
+        <div className="divide-y divide-border">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="flex items-center justify-between p-4">
-              <div className="flex items-center space-x-3">
-                <Skeleton className="h-10 w-10 rounded-full" />
-                <div className="space-y-1">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-3 w-48" />
+            <div key={i} className="flex items-center justify-between p-8">
+              <div className="flex items-center space-x-6">
+                <Skeleton className="h-14 w-14 rounded-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-56" />
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Skeleton className="h-6 w-20" />
-                <Skeleton className="h-8 w-24" />
-                <Skeleton className="h-8 w-8" />
+              <div className="flex items-center space-x-4">
+                <Skeleton className="h-10 w-40" />
+                <Skeleton className="h-6 w-24 rounded-full" />
+                <Skeleton className="h-10 w-10" />
               </div>
             </div>
           ))}
@@ -252,82 +278,108 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-10">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Equipe</h2>
-            <Badge variant="secondary" className="ml-1">
-              {users.length} {users.length === 1 ? 'membro' : 'membros'}
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Gerencie membros da equipe e suas permissões
-          </p>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <Badge variant="secondary" className="text-sm font-medium px-3 py-1">
+            {users.length} {users.length === 1 ? 'membro' : 'membros'}
+          </Badge>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2" size="sm">
-              <Plus className="h-4 w-4" />
+            <Button className="gap-3 h-12 px-8 text-base">
+              <UserPlus className="h-5 w-5" />
               Adicionar Membro
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserCheck className="h-5 w-5" />
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader className="space-y-4 pb-4">
+              <DialogTitle className="flex items-center gap-4 text-2xl">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                  <UserCheck className="h-6 w-6 text-primary" />
+                </div>
                 Novo Membro da Equipe
               </DialogTitle>
-              <DialogDescription>
-                Adicione um novo membro à equipe e defina suas permissões
+              <DialogDescription className="text-base leading-relaxed">
+                Adicione um novo membro à equipe e defina suas permissões de acesso ao sistema
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreateUser} className="space-y-4">
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome completo</Label>
-                  <Input 
-                    id="name" 
-                    name="name" 
-                    placeholder="Digite o nome completo"
-                    required 
-                  />
+            <form onSubmit={handleCreateUser} className="space-y-8">
+              <div className="grid gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <Label htmlFor="name" className="text-base font-medium">Nome completo</Label>
+                    <Input 
+                      id="name" 
+                      name="name" 
+                      placeholder="Digite o nome completo"
+                      className="h-12 text-base"
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="email" className="text-base font-medium">E-mail</Label>
+                    <Input 
+                      id="email" 
+                      name="email" 
+                      type="email" 
+                      placeholder="exemplo@empresa.com"
+                      className="h-12 text-base"
+                      required 
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input 
-                    id="email" 
-                    name="email" 
-                    type="email" 
-                    placeholder="exemplo@empresa.com"
-                    required 
-                  />
+                
+                <div className="space-y-3">
+                  <Label htmlFor="password" className="text-base font-medium">Senha temporária</Label>
+                  <div className="relative">
+                    <Input 
+                      id="password" 
+                      name="password" 
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Senha que será enviada ao usuário"
+                      className="h-12 pr-12 text-base"
+                      required 
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha temporária</Label>
-                  <Input 
-                    id="password" 
-                    name="password" 
-                    type="password" 
-                    placeholder="Senha que será enviada ao usuário"
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Função na equipe</Label>
+                
+                <div className="space-y-3">
+                  <Label htmlFor="role" className="text-base font-medium">Função na equipe</Label>
                   <Select name="role" defaultValue="professor">
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 text-base">
                       <SelectValue placeholder="Selecione a função" />
                     </SelectTrigger>
                     <SelectContent>
                       {ROLE_OPTIONS.map((role) => (
-                        <SelectItem key={role.value} value={role.value}>
-                          <div className="flex items-center gap-2">
-                            {role.value === 'admin' && <Shield className="h-4 w-4" />}
-                            {role.label}
+                        <SelectItem key={role.value} value={role.value} className="py-4">
+                          <div className="flex items-center gap-4">
+                            {role.value === 'admin' && (
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10">
+                                <Shield className="h-4 w-4 text-destructive" />
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-medium text-base">{role.label}</div>
+                              <div className="text-sm text-muted-foreground mt-1">
+                                {role.value === 'admin' && 'Acesso total ao sistema'}
+                                {role.value === 'marketing' && 'Gestão de campanhas e leads'}
+                                {role.value === 'comercial' && 'Gestão de vendas e propostas'}
+                                {role.value === 'financeiro' && 'Gestão financeira e relatórios'}
+                                {role.value === 'professor' && 'Acesso básico do sistema'}
+                              </div>
+                            </div>
                           </div>
                         </SelectItem>
                       ))}
@@ -335,12 +387,22 @@ export default function UserManagement() {
                   </Select>
                 </div>
               </div>
-              <DialogFooter className="gap-2 sm:gap-0">
+              <DialogFooter className="gap-4 sm:gap-0 pt-6">
                 <DialogClose asChild>
-                  <Button variant="outline">Cancelar</Button>
+                  <Button variant="outline" className="h-12 px-8 text-base">Cancelar</Button>
                 </DialogClose>
-                <Button type="submit" disabled={isCreating}>
-                  {isCreating ? 'Criando...' : 'Adicionar Membro'}
+                <Button type="submit" disabled={isCreating} className="h-12 px-8 text-base">
+                  {isCreating ? (
+                    <>
+                      <div className="mr-3 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                      Criando...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-3 h-5 w-5" />
+                      Adicionar Membro
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -348,63 +410,179 @@ export default function UserManagement() {
         </Dialog>
       </div>
 
+      {/* Search and Filter Section */}
+      <div className="flex flex-col sm:flex-row gap-6">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome ou e-mail..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-12 h-12 text-base"
+          />
+        </div>
+        <Select value={selectedRole} onValueChange={setSelectedRole}>
+          <SelectTrigger className="w-full sm:w-48 h-12 text-base">
+            <Filter className="mr-3 h-5 w-5" />
+            <SelectValue placeholder="Filtrar por função" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="py-3">Todas as funções</SelectItem>
+            {ROLE_OPTIONS.map((role) => (
+              <SelectItem key={role.value} value={role.value} className="py-3">
+                <div className="flex items-center gap-3">
+                  {role.value === 'admin' && <Shield className="h-4 w-4" />}
+                  {role.label}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Team Statistics */}
+      {users.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {ROLE_OPTIONS.map((role) => {
+            const count = roleStats[role.value] || 0;
+            return (
+              <Card key={role.value} className={`p-6 transition-colors ${count > 0 ? 'bg-card' : 'bg-muted/30'}`}>
+                <div className="flex items-center gap-4">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                    role.value === 'admin' ? 'bg-destructive/10' : 'bg-primary/10'
+                  }`}>
+                    {role.value === 'admin' ? (
+                      <Shield className="h-5 w-5 text-destructive" />
+                    ) : (
+                      <Users className="h-5 w-5 text-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <p className={`text-3xl font-bold ${count === 0 ? 'text-muted-foreground' : ''}`}>
+                      {count}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">{role.label}</p>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
       {/* Users List */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Settings2 className="h-4 w-4" />
-            Membros da Equipe
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Lista de todos os membros da equipe e suas respectivas funções
-          </CardDescription>
+        <CardHeader className="pb-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <Settings2 className="h-6 w-6" />
+                Membros da Equipe
+                {filteredUsers.length !== users.length && (
+                  <Badge variant="outline" className="text-sm px-3 py-1">
+                    {filteredUsers.length} de {users.length}
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-base">
+                {searchTerm || selectedRole !== 'all' 
+                  ? `Mostrando ${filteredUsers.length} membro${filteredUsers.length !== 1 ? 's' : ''} encontrado${filteredUsers.length !== 1 ? 's' : ''}`
+                  : `Lista completa de ${users.length} membro${users.length !== 1 ? 's' : ''} da equipe`
+                }
+              </CardDescription>
+            </div>
+            {(searchTerm || selectedRole !== 'all') && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="h-10 px-4"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedRole('all');
+                }}
+              >
+                Limpar filtros
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
-          {users.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Users className="h-10 w-10 text-muted-foreground mb-3" />
-              <h3 className="font-medium text-muted-foreground mb-1">Nenhum membro encontrado</h3>
-              <p className="text-xs text-muted-foreground mb-3">
-                Adicione o primeiro membro da sua equipe
-              </p>
-              <Button onClick={() => setIsDialogOpen(true)} variant="outline" size="sm">
-                <Plus className="h-3 w-3 mr-2" />
-                Adicionar Primeiro Membro
-              </Button>
+          {filteredUsers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              {searchTerm || selectedRole !== 'all' ? (
+                <>
+                  <Search className="h-16 w-16 text-muted-foreground mb-6" />
+                  <h3 className="text-xl font-medium text-muted-foreground mb-3">
+                    Nenhum membro encontrado
+                  </h3>
+                  <p className="text-base text-muted-foreground mb-6 max-w-md">
+                    Não encontramos membros que correspondem aos filtros aplicados
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    className="h-12 px-6"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setSelectedRole('all');
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-muted/50 mb-6">
+                    <Users className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-medium text-muted-foreground mb-3">
+                    Nenhum membro cadastrado
+                  </h3>
+                  <p className="text-base text-muted-foreground mb-8 max-w-md">
+                    Adicione o primeiro membro da sua equipe para começar a gerenciar permissões
+                  </p>
+                  <Button onClick={() => setIsDialogOpen(true)} className="gap-3 h-12 px-6">
+                    <UserPlus className="h-5 w-5" />
+                    Adicionar Primeiro Membro
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
-            <div className="divide-y">
-              {users.map((user) => (
-                <div key={user.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-xs font-medium text-primary">
+            <div className="divide-y divide-border">
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="flex items-center justify-between p-8 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center space-x-6">
+                    <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center ring-1 ring-primary/20 shrink-0">
+                      <span className="text-base font-semibold text-primary">
                         {user.user_metadata.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate text-sm">
+                      <p className="font-semibold truncate text-base">
                         {user.user_metadata.name || 'Nome não informado'}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {user.email}
-                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-base text-muted-foreground truncate">
+                          {user.email}
+                        </p>
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-4">
                     <Select
                       value={user.user_metadata.role}
                       onValueChange={(value) => handleUpdateRole(user.id, value as UserRole, user.user_metadata.name || user.email || 'Usuário')}
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-40 h-10 text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {ROLE_OPTIONS.map((role) => (
-                          <SelectItem key={role.value} value={role.value}>
-                            <div className="flex items-center gap-2">
-                              {role.value === 'admin' && <Shield className="h-4 w-4" />}
+                          <SelectItem key={role.value} value={role.value} className="py-3">
+                            <div className="flex items-center gap-3">
+                              {role.value === 'admin' && <Shield className="h-4 w-4 text-destructive" />}
                               {role.label}
                             </div>
                           </SelectItem>
@@ -412,39 +590,45 @@ export default function UserManagement() {
                       </SelectContent>
                     </Select>
                     
-                    <Badge variant={getRoleBadgeVariant(user.user_metadata.role!)}>
+                    <Badge 
+                      variant={getRoleBadgeVariant(user.user_metadata.role!)}
+                      className="gap-2 font-medium px-3 py-1 text-sm"
+                    >
+                      {getRoleIcon(user.user_metadata.role!)}
                       {ROLE_LABELS[user.user_metadata.role!]}
                     </Badge>
 
                     <AlertDialog>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
+                          <Button variant="ghost" size="sm" className="h-10 w-10 p-0">
+                            <MoreVertical className="h-5 w-5" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuLabel className="px-4 py-3">Ações</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
                           <AlertDialogTrigger asChild>
-                            <DropdownMenuItem className="text-destructive">
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Remover
+                            <DropdownMenuItem className="text-destructive focus:text-destructive px-4 py-3">
+                              <Trash2 className="h-4 w-4 mr-3" />
+                              Remover da equipe
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
                         </DropdownMenuContent>
                       </DropdownMenu>
                       
-                      <AlertDialogContent>
+                      <AlertDialogContent className="sm:max-w-lg">
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Remover membro da equipe</AlertDialogTitle>
-                          <AlertDialogDescription>
+                          <AlertDialogTitle className="text-xl">Remover membro da equipe</AlertDialogTitle>
+                          <AlertDialogDescription className="text-base">
                             Tem certeza que deseja remover <strong>{user.user_metadata.name || user.email}</strong> da equipe? 
-                            Esta ação não pode ser desfeita.
+                            Esta ação não pode ser desfeita e o usuário perderá acesso ao sistema.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogFooter className="gap-3 sm:gap-0">
+                          <AlertDialogCancel className="h-11 px-6">Cancelar</AlertDialogCancel>
                           <AlertDialogAction
-                            className="bg-destructive hover:bg-destructive/90"
+                            className="bg-destructive hover:bg-destructive/90 h-11 px-6"
                             onClick={() => handleDeleteUser(user.id, user.user_metadata.name || user.email || 'Usuário')}
                           >
                             Remover
