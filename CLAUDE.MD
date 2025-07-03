@@ -24,9 +24,9 @@ O **FavaleTrainer CRM** é um sistema completo de gerenciamento de relacionament
 - **Realtime Subscriptions** - Atualizações em tempo real
 
 ### **Integrações Externas**
-- **Evolution API** - Integração WhatsApp Business
-- **Vercel KV** - Cache Redis
-- **Papa Parse** - Processamento CSV
+- **Evolution API** - Integração WhatsApp Business (HTTP nativo otimizado)
+- **Vercel KV** - Cache Redis distribuído
+- **Papa Parse** - Processamento CSV em lote
 
 ### **Gerenciamento de Estado**
 - **React Query (TanStack Query)** - Cache e sincronização de dados
@@ -265,36 +265,63 @@ NextCRM/
 
 ## 🔗 Integrações e APIs
 
-### **Evolution API (WhatsApp)**
+### **Evolution API (WhatsApp) - Integração Otimizada**
 
-#### **Configuração**
+#### **Nova Arquitetura HTTP**
+- **Fetch Nativo** substituindo Axios para melhor performance
+- **Sistema de Retry** com backoff exponencial e jitter
+- **Error Classification** - Network, API, Rate Limit errors
+- **Request Timeout** configurável (padrão: 30s)
+- **Circuit Breaker** para proteção contra falhas
+- **Connection Pooling** para reutilização de conexões
+
+#### **Configuração Avançada**
 ```env
+# Core Configuration
 EVOLUTION_API_URL=https://evolution-api.domain.com
 EVOLUTION_API_KEY=your-api-key
 WHATSAPP_INSTANCE_NAME=Leonardo
 NEXT_PUBLIC_WEBHOOK_URL=https://your-app.com/api/whatsapp/webhook
+
+# Performance Tuning (opcional)
+HTTP_TIMEOUT=30000
+HTTP_RETRIES=3
+RATE_LIMIT_WINDOW=60000
+RATE_LIMIT_MAX=30
 ```
 
-#### **Endpoints Utilizados**
-- `GET /instance/connect/{instance}` - Conectar instância
-- `POST /message/sendText/{instance}` - Enviar texto
-- `POST /message/sendMedia/{instance}` - Enviar mídia
-- `GET /instance/fetchInstances` - Status das instâncias
-- `POST /webhook/set/{instance}` - Configurar webhook
+#### **Endpoints Otimizados**
+- `GET /instance/fetchInstances` - Status das instâncias (com cache)
+- `GET /instance/connect/{instance}` - Conectar instância (com retry)
+- `POST /message/sendText/{instance}` - Enviar texto (com confirmação)
+- `POST /message/sendMedia/{instance}` - Enviar mídia (upload otimizado)
+- `POST /webhook/set/{instance}` - Configurar webhook (validação)
+- `DELETE /instance/logout/{instance}` - Desconectar (cleanup)
 
-#### **Webhook Events**
-- `CONNECTION_UPDATE` - Status da conexão
-- `MESSAGES_UPSERT` - Novas mensagens
-- `CHATS_UPSERT` - Novos chats
-- `CHATS_UPDATE` - Atualizações de chat
+#### **Webhook Events Processados**
+- `CONNECTION_UPDATE` - Status da conexão com persistência
+- `MESSAGES_UPSERT` - Novas mensagens com auto-criação de leads
+- `MESSAGES_UPDATE` - Status de mensagens (lida/entregue)
+- `MESSAGES_DELETE` - Mensagens deletadas
+- `CHATS_UPSERT` - Novos chats com metadados
+- `CONTACTS_UPSERT` - Atualizações de contatos
+- `SEND_MESSAGE` - Confirmação de envio
+- `QRCODE_UPDATED` - Novo QR Code disponível
 
 ### **Supabase Realtime**
 
-#### **Subscriptions Ativas**
-- **whatsapp_messages**: Mensagens em tempo real
-- **whatsapp_connections**: Status de conexão
+#### **Subscriptions Ativas Otimizadas**
+- **whatsapp_messages**: Mensagens em tempo real com cache invalidation
+- **whatsapp_connections**: Status de conexão com persistência
 - **tasks**: Atualizações de tarefas
-- **leads**: Mudanças nos leads
+- **leads**: Mudanças nos leads com auto-refresh
+
+#### **Melhorias na Visibilidade de Mensagens**
+- **Real-time Subscriptions**: Adicionadas em todos os componentes de chat
+- **Cache Invalidation**: Invalidação automática após envio de mensagens
+- **Query Refresh**: Atualização forçada após operações críticas
+- **Fallback Polling**: Refresh a cada 5 segundos como backup
+- **Error Recovery**: Reconexão automática em caso de falhas
 
 ## 🎨 Interface e UX
 
@@ -390,10 +417,93 @@ NEXT_PUBLIC_WEBHOOK_URL=https://your-app.com/api/whatsapp/webhook
 - **Reverse proxy** (Nginx)
 - **Monitoring** de uptime
 
-### **Variáveis de Ambiente**
+### **Configuração de Ambiente**
 
-#### **Produção**
+#### **Variáveis de Ambiente - Desenvolvimento**
 ```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Evolution API Configuration
+EVOLUTION_API_URL=https://evolution.yourdomain.com
+EVOLUTION_API_KEY=your-evolution-key
+WHATSAPP_INSTANCE_NAME=Leonardo
+NEXT_PUBLIC_WEBHOOK_URL=http://localhost:3000/api/whatsapp/webhook
+
+# Optional: Vercel KV for caching
+KV_URL=your-vercel-kv-url
+KV_REST_API_URL=your-kv-rest-url
+KV_REST_API_TOKEN=your-kv-token
+```
+
+#### **Variáveis de Ambiente - Produção**
+```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Evolution API Configuration
+EVOLUTION_API_URL=https://evolution.yourdomain.com
+EVOLUTION_API_KEY=your-evolution-key
+WHATSAPP_INSTANCE_NAME=Leonardo
+NEXT_PUBLIC_WEBHOOK_URL=https://yourapp.vercel.app/api/whatsapp/webhook
+
+# Vercel KV for Production Caching
+KV_URL=your-vercel-kv-url
+KV_REST_API_URL=your-kv-rest-url
+KV_REST_API_TOKEN=your-kv-token
+```
+
+#### **Configuração de Segurança**
+
+##### **Supabase Security**
+- **RLS Policies**: Habilitadas em todas as tabelas
+- **User Authentication**: Supabase Auth integrado
+- **API Keys**: Separação entre anon key e service role
+- **Database**: SSL/TLS por padrão
+
+##### **Evolution API Security**
+- **API Key Authentication**: Chave única por instância
+- **Webhook Validation**: Verificação de origem
+- **Rate Limiting**: 30 mensagens/minuto
+- **Instance Isolation**: Uma instância por usuário
+
+##### **Best Practices**
+```env
+# NUNCA commitir no git
+# Usar diferentes chaves para dev/prod
+# Rotacionar chaves regularmente
+# Monitorar uso de APIs
+```
+
+## 🔧 Desenvolvimento Local
+
+### **Pré-requisitos**
+- **Node.js 18+** (recomendado 18.17.0 ou superior)
+- **npm/yarn/pnpm** (npm 9+ recomendado)
+- **Git** para controle de versão
+- **Conta Supabase** (tier gratuito suficiente para desenvolvimento)
+- **Evolution API** configurada e acessível
+- **Editor de código** (VS Code recomendado com extensões TypeScript)
+
+### **Configuração Inicial**
+
+#### **1. Clone e Instale Dependências**
+```bash
+git clone <repository-url>
+cd NextCRM
+npm install
+```
+
+#### **2. Configure Variáveis de Ambiente**
+```bash
+# Crie o arquivo de ambiente local
+cp .env.example .env.local
+
+# Configure as seguintes variáveis:
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
@@ -403,49 +513,27 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 EVOLUTION_API_URL=https://evolution.yourdomain.com
 EVOLUTION_API_KEY=your-evolution-key
 WHATSAPP_INSTANCE_NAME=Leonardo
-NEXT_PUBLIC_WEBHOOK_URL=https://yourapp.vercel.app/api/whatsapp/webhook
+NEXT_PUBLIC_WEBHOOK_URL=http://localhost:3000/api/whatsapp/webhook
 
-# Redis (Opcional)
+# Opcional: Vercel KV (para cache)
 KV_URL=your-vercel-kv-url
 KV_REST_API_URL=your-kv-rest-url
 KV_REST_API_TOKEN=your-kv-token
 ```
 
-## 🔧 Desenvolvimento Local
-
-### **Pré-requisitos**
-- Node.js 18+ 
-- npm/yarn/pnpm
-- Git
-- Conta Supabase
-- Evolution API configurada
-
-### **Configuração**
-
-#### **1. Clone e Instale**
-```bash
-git clone <repository-url>
-cd NextCRM
-npm install
-```
-
-#### **2. Configure Ambiente**
-```bash
-cp .env.example .env.local
-# Configure todas as variáveis necessárias
-```
-
 #### **3. Configure Supabase**
 ```bash
-# Execute as migrations
+# Execute as migrations do banco de dados
 npx supabase db push
 
-# Configure RLS policies
-# Dados de exemplo (opcional)
-npm run seed
+# Configure as políticas RLS (Row Level Security)
+# As políticas são aplicadas automaticamente via migrations
+
+# Opcional: Adicione dados de exemplo
+npm run seed  # (se disponível)
 ```
 
-#### **4. Inicie o Desenvolvimento**
+#### **4. Inicie o Servidor de Desenvolvimento**
 ```bash
 npm run dev
 # Aplicação disponível em http://localhost:3000
@@ -454,35 +542,136 @@ npm run dev
 ### **Scripts Disponíveis**
 ```json
 {
-  "dev": "next dev",                    // Desenvolvimento
-  "build": "next build",                // Build de produção
-  "start": "next start",                // Servidor de produção
-  "lint": "next lint",                  // Linting do código
-  "type-check": "tsc --noEmit"          // Verificação de tipos
+  "dev": "next dev",          // Servidor de desenvolvimento (porta 3000)
+  "build": "next build",      // Build otimizado para produção
+  "start": "next start",      // Servidor de produção
+  "lint": "next lint"         // Verificação de qualidade do código
 }
+```
+
+### **Comandos Úteis para Desenvolvimento**
+
+#### **Verificação de Tipos**
+```bash
+npx tsc --noEmit  # Verificação de tipos TypeScript
+```
+
+#### **Linting e Formatação**
+```bash
+npm run lint      # Verificação de regras ESLint
+npm run lint:fix  # Correção automática de problemas
+```
+
+#### **Teste de Webhook (Desenvolvimento)**
+```bash
+# Teste de configuração do webhook
+node check-webhook-config.js
+
+# Diagnóstico completo
+node diagnose-webhook.js
+
+# Teste com mensagens reais
+node test-webhook-real.js
 ```
 
 ## 🧪 Testes e Qualidade
 
 ### **Estratégia de Testes**
-- **TypeScript** para verificação de tipos
-- **ESLint** para qualidade de código
+
+#### **Verificação de Tipos**
+- **TypeScript** em modo estrito para prevenção de erros
+- **Configuração rigorosa** no tsconfig.json
+- **Tipos personalizados** para database e APIs
+- **Validação em tempo de compilação**
+
+#### **Qualidade de Código**
+- **ESLint** com configuração Next.js
 - **Prettier** para formatação consistente
-- **Testes de integração** com APIs
+- **Conventional commits** para versionamento
+- **Code review** obrigatório para PRs
 
-### **Monitoramento**
+#### **Testes de Integração**
+- **Scripts de teste** para Evolution API
+- **Webhook testing** com cenários reais
+- **Database migrations** testadas
+- **Supabase RLS** validado
 
-#### **Performance**
-- **Vercel Analytics** para métricas web
-- **Core Web Vitals** monitorados
-- **Error tracking** automático
-- **Query performance** via React Query DevTools
+### **Ferramentas de Teste Disponíveis**
 
-#### **Logs**
-- **Structured logging** com prefixos
-- **Error boundaries** para captura de erros
-- **API monitoring** com status codes
-- **WhatsApp integration** logging detalhado
+#### **Webhook Testing**
+```bash
+# Teste de configuração básica
+node check-webhook-config.js
+
+# Diagnóstico completo da integração
+node diagnose-webhook.js
+
+# Simulação de mensagens reais
+node test-webhook-real.js
+
+# Teste de eventos específicos
+node test-webhook-specific-events.js
+
+# Teste de rotas catch-all
+node test-catch-all-routes.js
+```
+
+#### **Database Testing**
+```bash
+# Verificação de migrations
+npx supabase db diff
+
+# Teste de políticas RLS
+npx supabase db test
+
+# Verificação de tipos
+npx supabase gen types typescript
+```
+
+### **Monitoramento e Observabilidade**
+
+#### **Performance Monitoring**
+- **Vercel Analytics** para métricas web vitais
+- **Core Web Vitals** (LCP, FID, CLS) monitorados
+- **React Query DevTools** para debugging
+- **Next.js Built-in Analytics** para performance
+
+#### **Error Tracking**
+- **Error Boundaries** React para captura de erros
+- **Structured logging** com prefixos contextuais
+- **API monitoring** com status codes detalhados
+- **WhatsApp integration** logging com timestamps
+
+#### **Logs Estruturados**
+```javascript
+// Exemplo de logging estruturado
+console.log('[WEBHOOK]', 'Message received:', {
+  timestamp: new Date().toISOString(),
+  messageId: data.messageId,
+  from: data.from,
+  type: data.type
+});
+```
+
+### **Debugging e Troubleshooting**
+
+#### **React Query DevTools**
+- **Query inspection** em desenvolvimento
+- **Cache invalidation** debugging
+- **Network requests** monitoring
+- **Mutation tracking** para operações
+
+#### **Supabase Debugging**
+- **Real-time subscriptions** monitoring
+- **Database queries** performance
+- **RLS policies** testing
+- **Auth flow** debugging
+
+#### **WhatsApp Integration Debug**
+- **Webhook payload** inspection
+- **Message flow** tracking
+- **Connection status** monitoring
+- **Rate limiting** verification
 
 ## 📈 Roadmap e Melhorias Futuras
 
@@ -507,25 +696,282 @@ npm run dev
 - [ ] **Analytics preditivos** com ML
 - [ ] **Integrações** com equipamentos fitness
 
-## 🤝 Contribuição e Suporte
+## 🛠️ Configurações e Personalizações
 
-### **Estrutura de Desenvolvimento**
-- **Feature branches** para novas funcionalidades
-- **Code review** obrigatório
-- **Conventional commits** para versionamento
-- **Semantic versioning** para releases
+### **Next.js Configuration**
+```javascript
+// next.config.js
+module.exports = {
+  eslint: {
+    ignoreDuringBuilds: true,  // Para builds mais rápidos
+  },
+  images: {
+    unoptimized: true,         // Para compatibilidade
+  },
+  typescript: {
+    ignoreBuildErrors: false,  // Type checking habilitado
+  }
+};
+```
 
-### **Documentação**
-- **README.md** para setup básico
-- **WHATSAPP_INTEGRATION.md** para configuração WhatsApp
-- **CLAUDE.MD** (este arquivo) para visão geral
-- **JSDoc** inline para funções complexas
+### **TypeScript Configuration**
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "jsx": "preserve",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
+```
 
-### **Contato e Suporte**
-- **Issues** no repositório para bugs
-- **Discussions** para perguntas gerais
-- **Wiki** com documentação adicional
-- **Slack/Discord** para comunicação rápida
+### **Tailwind CSS Configuration**
+```javascript
+// tailwind.config.ts
+module.exports = {
+  content: [
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        'favale-functional': '#22c55e',
+        'personal-training': '#3b82f6',
+        'fit': '#8b5cf6',
+      }
+    }
+  },
+  plugins: [require('tailwindcss-animate')]
+};
+```
+
+## 🤝 Contribuição e Desenvolvimento
+
+### **Workflow de Desenvolvimento**
+
+#### **Git Flow**
+```bash
+# Criar nova feature
+git checkout -b feature/nova-funcionalidade
+
+# Commits convencionais
+git commit -m "feat: adicionar nova funcionalidade"
+git commit -m "fix: corrigir bug no login"
+git commit -m "docs: atualizar documentação"
+
+# Push e PR
+git push origin feature/nova-funcionalidade
+# Criar Pull Request no GitHub
+```
+
+#### **Conventional Commits**
+- `feat:` - Nova funcionalidade
+- `fix:` - Correção de bug
+- `docs:` - Alterações na documentação
+- `style:` - Mudanças que não afetam o código
+- `refactor:` - Refatoração de código
+- `test:` - Adição ou correção de testes
+- `chore:` - Tarefas de manutenção
+
+### **Estrutura de Code Review**
+
+#### **Checklist de Review**
+- [ ] **Funcionalidade** implementada corretamente
+- [ ] **Testes** adicionados quando necessário
+- [ ] **TypeScript** sem erros
+- [ ] **ESLint** sem warnings
+- [ ] **Performance** considerada
+- [ ] **Security** verificada
+- [ ] **Documentação** atualizada
+
+#### **Critérios de Qualidade**
+- **Componentes** reutilizáveis e bem estruturados
+- **Hooks customizados** para lógica complexa
+- **Error handling** apropriado
+- **Loading states** implementados
+- **Responsive design** considerado
+
+### **Documentação e Suporte**
+
+#### **Documentação Técnica**
+- **CLAUDE.MD** - Visão geral completa do projeto
+- **README.md** - Setup básico e instruções
+- **WHATSAPP_INTEGRATION.md** - Configuração WhatsApp
+- **API.md** - Documentação das APIs
+- **DEPLOYMENT.md** - Guia de deploy
+
+#### **Inline Documentation**
+```typescript
+/**
+ * Hook para gerenciar conexões WhatsApp
+ * @returns {Object} Estado da conexão e funções de controle
+ */
+function useWhatsAppConnection() {
+  // Implementação...
+}
+```
+
+#### **Componente Documentation**
+```typescript
+interface LeadTableProps {
+  /** Lista de leads para exibir */
+  leads: Lead[];
+  /** Função callback para seleção */
+  onLeadSelect: (lead: Lead) => void;
+  /** Habilita seleção múltipla */
+  multiSelect?: boolean;
+}
+```
+
+### **Suporte e Comunicação**
+
+#### **Canais de Comunicação**
+- **GitHub Issues** - Bugs e solicitações de features
+- **GitHub Discussions** - Perguntas gerais e ideias
+- **Pull Requests** - Code review e colaboração
+- **Slack/Discord** - Comunicação rápida da equipe
+
+#### **Processo de Suporte**
+1. **Verificar** documentação existente
+2. **Buscar** issues similares no GitHub
+3. **Criar** issue detalhada se necessário
+4. **Fornecer** logs e contexto relevante
+5. **Seguir** template de issue quando disponível
+
+## 📚 Recursos Adicionais
+
+### **Extensões VS Code Recomendadas**
+```json
+{
+  "recommendations": [
+    "ms-vscode.vscode-typescript-next",
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "ms-vscode.vscode-json",
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.path-intellisense"
+  ]
+}
+```
+
+### **Snippets e Produtividade**
+
+#### **Componente React Template**
+```typescript
+// rfc - React Functional Component
+import React from 'react';
+
+interface ComponentNameProps {
+  // Props interface
+}
+
+const ComponentName: React.FC<ComponentNameProps> = (props) => {
+  return (
+    <div>
+      {/* Component content */}
+    </div>
+  );
+};
+
+export default ComponentName;
+```
+
+#### **Custom Hook Template**
+```typescript
+// rhook - React Hook
+import { useState, useEffect } from 'react';
+
+interface UseHookNameReturn {
+  // Return type
+}
+
+function useHookName(): UseHookNameReturn {
+  // Hook logic
+  return {
+    // Return object
+  };
+}
+
+export default useHookName;
+```
+
+### **Performance Tips**
+
+#### **React Query Configuration**
+```typescript
+// Configuração otimizada para produção
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutos
+      cacheTime: 10 * 60 * 1000, // 10 minutos
+      retry: 3,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+```
+
+#### **Otimizações Next.js**
+```typescript
+// Dynamic imports para code splitting
+const LazyComponent = dynamic(() => import('./LazyComponent'), {
+  loading: () => <Skeleton />,
+  ssr: false,
+});
+
+// Image optimization
+import Image from 'next/image';
+
+<Image
+  src="/path/to/image.jpg"
+  alt="Description"
+  width={300}
+  height={200}
+  placeholder="blur"
+  blurDataURL="data:image/..."
+/>;
+```
+
+### **Troubleshooting Guide**
+
+#### **Problemas Comuns**
+
+**1. Webhook não recebe mensagens**
+```bash
+# Verificar configuração
+node diagnose-webhook.js
+
+# Testar conexão
+curl -X POST https://your-app.com/api/whatsapp/webhook
+```
+
+**2. Erro de conexão Supabase**
+```typescript
+// Verificar configuração
+console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+console.log('Supabase Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10) + '...');
+```
+
+**3. Problemas de build**
+```bash
+# Limpar cache
+rm -rf .next
+npm run build
+
+# Verificar tipos
+npx tsc --noEmit
+```
 
 ---
 
@@ -533,8 +979,36 @@ npm run dev
 
 O **FavaleTrainer CRM** representa uma solução moderna e completa para personal trainers, combinando as melhores práticas de desenvolvimento web com funcionalidades específicas do setor fitness. A arquitetura escalável, integração WhatsApp nativa e interface intuitiva fazem dele uma ferramenta poderosa para crescimento do negócio.
 
-A escolha tecnológica (Next.js + Supabase + Evolution API) garante performance, segurança e facilidade de manutenção, enquanto o design system baseado em shadcn/ui proporciona uma experiência de usuário consistente e profissional.
+### **Principais Diferenciais**
 
-**Versão do Documento**: 1.0  
+- **Arquitetura Moderna**: Next.js 15 + TypeScript + Supabase
+- **Integração WhatsApp**: Nativa com Evolution API
+- **Real-time**: Atualizações instantâneas com Supabase Realtime
+- **Multi-tenant**: Isolamento seguro de dados por usuário
+- **Performance**: Otimizações avançadas com React Query
+- **UX/UI**: Design system consistente com shadcn/ui
+- **Segurança**: RLS, autenticação robusta, validação de dados
+- **Escalabilidade**: Preparado para crescimento empresarial
+
+### **Tecnologias de Ponta**
+
+A escolha tecnológica (Next.js + Supabase + Evolution API) garante:
+- **Performance superior** com App Router e Edge Functions
+- **Segurança enterprise** com Row Level Security
+- **Facilidade de manutenção** com TypeScript e ESLint
+- **Experiência de usuário** profissional e responsiva
+- **Integração perfeita** com WhatsApp Business
+
+### **Próximos Passos**
+
+Para começar a usar o FavaleTrainer CRM:
+1. Siga o **guia de configuração local**
+2. Configure suas **variáveis de ambiente**
+3. Execute as **migrations do banco**
+4. Conecte sua **instância WhatsApp**
+5. Importe seus **leads iniciais**
+
+**Versão do Documento**: 2.0  
 **Última Atualização**: Julho 2025  
-**Autor**: Equipe de Desenvolvimento Favale
+**Autor**: Equipe de Desenvolvimento Favale  
+**Revisado por**: Claude AI Assistant

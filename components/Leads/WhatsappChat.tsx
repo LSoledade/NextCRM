@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '../ui/skeleton';
 import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ToastAction } from '../ui/toast';
 
@@ -84,42 +85,80 @@ const ConnectionStatusAlert = () => {
 };
 
 export default function WhatsappChat({ lead }: WhatsappChatProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { connectionStatus } = useWhatsAppConnection();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Use React Query for messages instead of local state
+  const { data: messages = [], isLoading: loading } = useQuery<Message[]>({
+    queryKey: ['whatsapp_messages', lead.id],
+    queryFn: async () => {
+      if (!lead.phone) return [];
+      const { data, error } = await supabase
+        .from('whatsapp_messages')
+        .select('*')
+        .eq('lead_id', lead.id)
+        .order('message_timestamp', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!lead.phone,
+    refetchOnWindowFocus: true,
+  });
 
   const scrollToBottom = useCallback(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), []);
 
-  useEffect(() => {
-    if (!lead.phone) {
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    supabase.from('whatsapp_messages').select('*').eq('lead_id', lead.id).order('message_timestamp', { ascending: true })
-      .then(({ data }) => {
-        setMessages(data || []);
-        setLoading(false);
-      });
-  }, [lead.id, lead.phone]);
-
+  // Real-time subscription for messages
   useEffect(() => {
     if (!lead.phone) return;
     
-    const channel = supabase.channel(`whatsapp_chat_${lead.id}`)
-      .on<Message>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `lead_id=eq.${lead.id}` },
-        (payload) => setMessages((prev) => [...prev, payload.new]))
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [lead.id, lead.phone]);
+    console.log(`🔄 Setting up realtime subscription for lead chat: ${lead.id}`);
+    
+    const channel = supabase
+      .channel(`whatsapp_chat_${lead.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'whatsapp_messages',
+          filter: `lead_id=eq.${lead.id}`
+        },
+        (payload) => {
+          console.log('📨 New message in chat via realtime:', payload.new);
+          // Invalidate React Query cache to refetch messages
+          queryClient.invalidateQueries({ queryKey: ['whatsapp_messages', lead.id] });
+          queryClient.invalidateQueries({ queryKey: ['whatsapp_chat_list'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_messages',
+          filter: `lead_id=eq.${lead.id}`
+        },
+        (payload) => {
+          console.log('📝 Message updated in chat via realtime:', payload.new);
+          queryClient.invalidateQueries({ queryKey: ['whatsapp_messages', lead.id] });
+        }
+      )
+      .subscribe((status) => {
+        console.log(`📡 Chat realtime subscription status for ${lead.id}:`, status);
+      });
+    
+    return () => {
+      console.log(`🔌 Removing chat realtime subscription for lead: ${lead.id}`);
+      supabase.removeChannel(channel);
+    };
+  }, [lead.id, lead.phone, queryClient]);
 
   useEffect(() => {
     scrollToBottom();
@@ -176,6 +215,10 @@ export default function WhatsappChat({ lead }: WhatsappChatProps) {
         setNewMessage('');
         setFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
+        
+        // Force refresh messages after successful send
+        queryClient.invalidateQueries({ queryKey: ['whatsapp_messages', lead.id] });
+        queryClient.invalidateQueries({ queryKey: ['whatsapp_chat_list'] });
         
         toast({
           title: 'Mensagem enviada',

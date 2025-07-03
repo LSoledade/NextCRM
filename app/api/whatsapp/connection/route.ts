@@ -4,10 +4,10 @@ import {
   fetchQRCode, 
   checkInstanceStatus,
   reconnectInstance,
-  ensureWebhookSetup
-} from '@/lib/evolution.service';
-import { supabase } from '@/lib/supabase';
+  setupWebhook
+} from '@/lib/evolution-http.service';
 import { createClient } from '@/utils/supabase/server';
+import { createServiceClient } from '@/utils/supabase/service';
 
 // Configurar timeout para operações WhatsApp
 const WHATSAPP_OPERATION_TIMEOUT = 30000; // 30 segundos
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         // Tentar configurar webhook
         const webhookUrl = `${request.nextUrl.origin}/api/whatsapp/webhook`;
         try {
-          await ensureWebhookSetup();
+          await setupWebhook();
           console.log('[Evolution] Webhook configurado');
         } catch (webhookError: any) {
           console.warn('[Evolution] Aviso webhook:', webhookError.message);
@@ -251,32 +251,34 @@ async function updateConnectionStatus(
   errorMessage: string | null = null
 ) {
   try {
-    // Usar o cliente servidor com autenticação adequada
-    const supabaseServer = await createClient();
+    // Use service client to ensure connection updates are saved
+    const serviceSupabase = createServiceClient();
     
-    // Usar upsert diretamente na tabela em vez de RPC
-    const { data, error } = await supabaseServer
+    const connectionData = {
+      user_id: userId,
+      instance_name: 'Leonardo',
+      status: status,
+      qr_code: qrCode,
+      whatsapp_user: whatsappUser,
+      last_connected_at: status === 'connected' ? new Date().toISOString() : null,
+      error_message: errorMessage,
+      updated_at: new Date().toISOString()
+    };
+
+    console.log('💾 Updating connection status:', connectionData);
+    
+    const { data, error } = await serviceSupabase
       .from('whatsapp_connections')
-      .upsert({
-        user_id: userId,
-        status: status,
-        qr_code: qrCode,
-        whatsapp_user: whatsappUser,
-        phone_number: whatsappUser?.id || null,
-        connected_at: status === 'connected' ? new Date().toISOString() : null,
-        disconnected_at: status === 'disconnected' ? new Date().toISOString() : null,
-        error_message: errorMessage,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
+      .upsert(connectionData, {
+        onConflict: 'user_id,instance_name'
       });
 
     if (error) {
-      console.error('Erro ao atualizar status no banco:', error);
+      console.error('❌ Error updating connection status:', error);
     } else {
-      console.log('Status WhatsApp atualizado com sucesso:', status);
+      console.log('✅ WhatsApp connection status updated successfully:', status);
     }
   } catch (error) {
-    console.error('Erro ao conectar com banco para atualizar status:', error);
+    console.error('❌ Error connecting to database to update status:', error);
   }
 }

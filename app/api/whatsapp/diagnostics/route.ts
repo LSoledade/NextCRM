@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runDiagnostics, testConnection } from '@/lib/evolution.service';
+import { testConnection, checkInstanceStatus } from '@/lib/evolution-http.service';
 import { createClient } from '@/utils/supabase/server';
 
 export async function GET(request: NextRequest) {
@@ -20,8 +20,20 @@ export async function GET(request: NextRequest) {
       const result = await testConnection();
       return NextResponse.json(result);
     } else {
-      // Diagnósticos completos
-      const result = await runDiagnostics();
+      // Diagnósticos completos - simplified for now
+      const connectionTest = await testConnection();
+      const instanceStatus = await checkInstanceStatus();
+      
+      const result = {
+        success: true,
+        results: {
+          timestamp: new Date().toISOString(),
+          connectivity: connectionTest,
+          instanceStatus: instanceStatus,
+          canSendMessages: connectionTest.success && instanceStatus.connected
+        }
+      };
+      
       return NextResponse.json(result);
     }
 
@@ -52,7 +64,20 @@ export async function POST(request: NextRequest) {
       const result = await testConnection();
       return NextResponse.json(result);
     } else if (action === 'full_diagnostics') {
-      const result = await runDiagnostics();
+      // Simplified diagnostics
+      const connectionTest = await testConnection();
+      const instanceStatus = await checkInstanceStatus();
+      
+      const result = {
+        success: true,
+        results: {
+          timestamp: new Date().toISOString(),
+          connectivity: connectionTest,
+          instanceStatus: instanceStatus,
+          canSendMessages: connectionTest.success && instanceStatus.connected
+        }
+      };
+      
       return NextResponse.json(result);
     } else {
       return NextResponse.json({ 

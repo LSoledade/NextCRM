@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processWebhook } from '@/lib/evolution.service';
+import { processWebhookEvent } from '@/lib/webhook.processor';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Processar webhook
-    await processWebhook(webhookData);
+    // Process webhook with improved processor
+    await processWebhookEvent(webhookData);
     
     console.log('[Webhook] ✅ Webhook processado com sucesso');
     

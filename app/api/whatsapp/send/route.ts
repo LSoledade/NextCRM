@@ -3,9 +3,11 @@ import {
   sendWhatsAppMessage, 
   sendTextMessage, 
   sendMediaMessage,
-  checkInstanceStatus 
-} from '@/lib/evolution.service';
+  checkInstanceStatus,
+  ApiResponse 
+} from '@/lib/evolution-http.service';
 import { createClient } from '@/utils/supabase/server';
+import { createServiceClient } from '@/utils/supabase/service';
 
 // Constantes para validação e segurança
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -239,7 +241,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Tentar enviar via WhatsApp com retry
-    let sentMsg;
+    let sentResponse: ApiResponse<any> | undefined;
     let lastError;
     
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -264,7 +266,7 @@ export async function POST(request: NextRequest) {
               break;
           }
 
-          sentMsg = await sendMediaMessage({
+          sentResponse = await sendMediaMessage({
             number: to,
             mediatype: mediaType,
             media: mediaUrl!,
@@ -273,24 +275,17 @@ export async function POST(request: NextRequest) {
           });
         } else {
           // Mensagem de texto simples
-          sentMsg = await sendTextMessage({
+          sentResponse = await sendTextMessage({
             number: to,
             text: sanitizedText!
           });
         }
         
-        if (sentMsg) break;
+        if (sentResponse.success) break;
+        lastError = new Error(sentResponse.error || 'Failed to send message');
       } catch (error: any) {
         lastError = error;
         console.error(`Tentativa ${attempt} falhou:`, error.message);
-        
-        // Log detalhado do erro para debugging
-        if (error.response) {
-          console.error('Resposta da API:', {
-            status: error.response.status,
-            data: error.response.data
-          });
-        }
         
         if (attempt < 3) {
           // Aguardar antes de tentar novamente
@@ -299,46 +294,55 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!sentMsg) {
+    if (!sentResponse || !sentResponse.success) {
       // Log do erro completo para debugging
       console.error('❌ Falha completa no envio:', {
         attempts: 3,
         lastError: lastError?.message,
-        lastErrorResponse: lastError?.response?.data
+        response: sentResponse
       });
       
       throw new Error(lastError?.message || "Falha ao enviar mensagem pelo WhatsApp após 3 tentativas");
     }
 
+    const sentMsg = sentResponse.data;
     console.log('✅ Mensagem enviada com sucesso:', {
-      messageId: sentMsg.key?.id || sentMsg.messageId || 'unknown',
-      status: sentMsg.status || 'sent'
+      messageId: sentMsg?.key?.id || sentMsg?.messageId || 'unknown',
+      status: sentMsg?.status || 'sent'
     });
 
-    // Salvar no banco de dados com retry
+    // Usar service client para garantir que a mensagem seja salva
+    const serviceSupabase = createServiceClient();
     let dbSaveSuccess = false;
     
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const { error: dbError } = await supabaseServer
+        // Salvar mensagem enviada no banco com informações mais completas
+        const messageData = {
+          lead_id, 
+          user_id: user.id, 
+          sender_jid: `${to}@s.whatsapp.net`, // Formato correto do JID
+          message_content: sanitizedText || (file ? `[${file.type.split('/')[0]}]` : null),
+          message_timestamp: new Date(), 
+          message_id: sentMsg?.key?.id || sentMsg?.messageId || `sent_${Date.now()}_${Math.random().toString(36).substring(7)}`, 
+          is_from_lead: false, // Mensagem enviada pelo usuário
+          message_type: file ? mimeType!.split('/')[0] : 'text', 
+          media_url: mediaUrl, 
+          mime_type: mimeType,
+        };
+
+        console.log('💾 Salvando mensagem enviada:', messageData);
+
+        const { error: dbError } = await serviceSupabase
           .from('whatsapp_messages')
-          .insert({
-            lead_id, 
-            user_id: user.id, 
-            sender_jid: user.id, 
-            message_content: sanitizedText || null,
-            message_timestamp: new Date(), 
-            message_id: sentMsg.key?.id || sentMsg.messageId || `msg_${Date.now()}`, 
-            is_from_lead: false,
-            message_type: file ? mimeType!.split('/')[0] : 'text', 
-            media_url: mediaUrl, 
-            mime_type: mimeType,
-          });
+          .insert(messageData);
 
         if (dbError) {
+          console.error('❌ Erro ao salvar mensagem:', dbError);
           throw dbError;
         }
         
+        console.log('✅ Mensagem salva no banco com sucesso');
         dbSaveSuccess = true;
         break;
       } catch (dbError: any) {
@@ -351,14 +355,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!dbSaveSuccess) {
-      console.warn('Mensagem enviada mas não foi salva no banco de dados');
+      console.warn('⚠️ Mensagem enviada mas não foi salva no banco de dados');
     }
 
     return NextResponse.json({ 
       success: true, 
-      messageId: sentMsg.key?.id || sentMsg.messageId || 'unknown',
+      messageId: sentMsg?.key?.id || sentMsg?.messageId || 'unknown',
       savedToDatabase: dbSaveSuccess,
-      status: sentMsg.status || 'sent'
+      status: sentMsg?.status || 'sent',
+      data: sentMsg
     });
     
   } catch (error: any) {
@@ -387,31 +392,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    // Buscar status atual da conexão
+    // Verificar status da instância diretamente com a Evolution API
+    const instanceStatus = await checkInstanceStatus();
+    
+    // Também buscar status local da conexão
     const { data: connection, error: connectionError } = await supabaseServer
       .from('whatsapp_connections')
-      .select('status, connected_at, phone_number')
+      .select('status, last_connected_at, whatsapp_user')
       .eq('user_id', user.id)
-      .single();
-
-    if (connectionError) {
-      return NextResponse.json({ 
-        connected: false, 
-        error: 'Erro ao verificar status da conexão' 
-      }, { status: 500 });
-    }
+      .maybeSingle();
 
     return NextResponse.json({
-      connected: connection?.status === 'connected',
-      status: connection?.status || 'disconnected',
-      phoneNumber: connection?.phone_number,
-      connectedAt: connection?.connected_at
+      connected: instanceStatus.connected,
+      status: instanceStatus.status,
+      exists: instanceStatus.exists,
+      profile: instanceStatus.profile,
+      localConnection: {
+        status: connection?.status || 'unknown',
+        lastConnectedAt: connection?.last_connected_at,
+        whatsappUser: connection?.whatsapp_user
+      }
     });
 
   } catch (error: any) {
     console.error('Erro ao verificar status WhatsApp:', error);
     return NextResponse.json({ 
       connected: false, 
+      status: 'error',
       error: 'Erro interno do servidor' 
     }, { status: 500 });
   }

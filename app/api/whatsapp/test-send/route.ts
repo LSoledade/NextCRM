@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendTextMessage, checkInstanceStatus } from '@/lib/evolution.service';
+import { sendTextMessage, checkInstanceStatus } from '@/lib/evolution-http.service';
 import { createClient } from '@/utils/supabase/server';
 
 export async function POST(request: NextRequest) {

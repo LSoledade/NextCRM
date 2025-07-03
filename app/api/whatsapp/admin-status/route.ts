@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getConnectionState, checkInstanceStatus } from '@/lib/evolution.service';
+import { checkInstanceStatus } from '@/lib/evolution-http.service';
 
 // Endpoint simplificado para verificação de status sem autenticação
 // NOTA: Em produção, considere adicionar alguma forma de autenticação ou rate limiting
@@ -16,11 +16,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Verificar estado da conexão
-    const connectionState = await getConnectionState();
+    // Return connection state based on instance status
+    const state = instanceStatus.connected ? 'connected' : 'disconnected';
     
     return NextResponse.json({
-      state: connectionState.state,
+      state: state,
       instanceStatus: instanceStatus.status,
       instanceConnected: instanceStatus.connected,
       profile: instanceStatus.profile,

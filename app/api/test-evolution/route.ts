@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  getConnectionStatus, 
-  connectToWhatsApp, 
   fetchQRCode, 
-  checkConnectionStatus 
-} from '@/lib/evolution.service';
+  checkInstanceStatus 
+} from '@/lib/evolution-http.service';
 
 export async function GET(request: NextRequest) {
   try {
     // Teste básico de status
-    const status = getConnectionStatus();
+    const status = await checkInstanceStatus();
     
     return NextResponse.json({
       success: true,
-      currentStatus: status,
+      instanceStatus: status,
       message: 'Evolution API test endpoint',
       timestamp: new Date().toISOString()
     });
@@ -32,19 +30,18 @@ export async function POST(request: NextRequest) {
     
     switch (action) {
       case 'status':
-        const connectionState = await checkConnectionStatus();
+        const connectionState = await checkInstanceStatus();
         return NextResponse.json({
           success: true,
-          connectionState,
-          currentStatus: getConnectionStatus()
+          instanceStatus: connectionState
         });
         
       case 'connect':
-        await connectToWhatsApp();
+        const qrResult = await fetchQRCode();
         return NextResponse.json({
           success: true,
           message: 'Conexão iniciada',
-          status: getConnectionStatus()
+          qrCode: qrResult
         });
         
       case 'qr':

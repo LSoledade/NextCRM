@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Send, Paperclip, FileText, MoreVertical, Phone, Video, SendHorizonal, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
@@ -28,6 +28,7 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: lead, isLoading: isLoadingLead } = useQuery<Lead | null>({
     queryKey: ['lead_details', leadId],
@@ -53,8 +54,56 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
           return data;
       },
       enabled: !!leadId,
-      refetchOnWindowFocus: true, // Garante que a conversa atualize ao voltar para a aba
+      refetchOnWindowFocus: true,
+      refetchInterval: 5000, // Refresh every 5 seconds as fallback
   });
+
+  // Real-time subscription for messages
+  useEffect(() => {
+    if (!leadId) return;
+
+    console.log(`🔄 Setting up realtime subscription for lead: ${leadId}`);
+    
+    const channel = supabase
+      .channel(`whatsapp_messages_${leadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'whatsapp_messages',
+          filter: `lead_id=eq.${leadId}`
+        },
+        (payload) => {
+          console.log('📨 New message received via realtime:', payload.new);
+          // Invalidate and refetch messages for this lead
+          queryClient.invalidateQueries({ queryKey: ['whatsapp_messages', leadId] });
+          // Also invalidate chat list to update last message
+          queryClient.invalidateQueries({ queryKey: ['whatsapp_chat_list'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_messages',
+          filter: `lead_id=eq.${leadId}`
+        },
+        (payload) => {
+          console.log('📝 Message updated via realtime:', payload.new);
+          queryClient.invalidateQueries({ queryKey: ['whatsapp_messages', leadId] });
+        }
+      )
+      .subscribe((status) => {
+        console.log(`📡 Realtime subscription status for ${leadId}:`, status);
+      });
+
+    return () => {
+      console.log(`🔌 Removing realtime subscription for lead: ${leadId}`);
+      supabase.removeChannel(channel);
+    };
+  }, [leadId, queryClient]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,17 +118,47 @@ function WhatsappChatView({ leadId }: WhatsappChatViewProps) {
     if (!newMessage.trim() || !lead?.phone || sending) return;
 
     setSending(true);
+    const messageText = newMessage.trim();
+    setNewMessage(''); // Optimistically clear input
     
     try {
+      console.log('📤 Sending message:', { to: lead.phone, text: messageText });
+      
+      const formData = new FormData();
+      formData.append('to', lead.phone);
+      formData.append('lead_id', lead.id);
+      formData.append('text', messageText);
+      
       const response = await fetch('/api/whatsapp/send', {
         method: 'POST',
-        body: new URLSearchParams({ to: lead.phone, lead_id: lead.id, text: newMessage.trim() }),
+        body: formData,
       });
+      
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Erro ao enviar mensagem');
-      setNewMessage('');
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao enviar mensagem');
+      }
+      
+      console.log('✅ Message sent successfully:', result);
+      
+      // Force refresh messages after successful send
+      queryClient.invalidateQueries({ queryKey: ['whatsapp_messages', leadId] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp_chat_list'] });
+      
+      toast({ 
+        title: 'Mensagem enviada', 
+        description: 'Sua mensagem foi enviada com sucesso.',
+        variant: 'default'
+      });
     } catch (error: any) {
-      toast({ title: 'Erro ao enviar', description: error.message, variant: 'destructive' });
+      console.error('❌ Error sending message:', error);
+      setNewMessage(messageText); // Restore message on error
+      toast({ 
+        title: 'Erro ao enviar', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
     } finally {
       setSending(false);
     }

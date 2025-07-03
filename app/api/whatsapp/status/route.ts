@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getConnectionState, checkInstanceStatus } from '@/lib/evolution.service';
+import { checkInstanceStatus } from '@/lib/evolution-http.service';
 import { createClient } from '@/utils/supabase/server';
 
 export async function GET(request: NextRequest) {
@@ -22,12 +22,15 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Verificar estado da conexão
-    const connectionState = await getConnectionState();
+    // Return detailed status information
+    const status = instanceStatus.connected ? 'connected' : 'disconnected';
     
     return NextResponse.json({
-      status: connectionState.state,
+      status: status,
+      exists: instanceStatus.exists,
+      connected: instanceStatus.connected,
       instanceStatus: instanceStatus.status,
+      profile: instanceStatus.profile,
       message: 'Status obtido com sucesso'
     });
     

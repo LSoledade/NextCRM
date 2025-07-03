@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processWebhook } from '@/lib/evolution.service';
+import { processWebhookEvent } from '@/lib/webhook.processor';
 
 export async function POST(
   request: NextRequest, 
@@ -43,7 +43,7 @@ export async function POST(
     }
 
     // Processar webhook usando a mesma lógica do webhook principal
-    await processWebhook(webhookData);
+    await processWebhookEvent(webhookData);
     
     console.log('[Webhook Catch-All] ✅ Webhook processado com sucesso');
     
