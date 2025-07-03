@@ -280,11 +280,20 @@ export default function UserManagement() {
   return (
     <div className="space-y-10">
       {/* Header Section */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <Badge variant="secondary" className="text-sm font-medium px-3 py-1">
-            {users.length} {users.length === 1 ? 'membro' : 'membros'}
-          </Badge>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-8">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
+            <h3 className="text-2xl font-semibold tracking-tight">Gerenciamento de Equipe</h3>
+            <Badge variant="secondary" className="text-sm font-medium px-3 py-1">
+              {users.length} {users.length === 1 ? 'membro' : 'membros'}
+            </Badge>
+          </div>
+          <p className="text-base text-muted-foreground max-w-3xl leading-relaxed">
+            Gerencie membros da equipe, defina permissões e controle o acesso às funcionalidades do sistema de forma centralizada
+          </p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

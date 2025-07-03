@@ -1,12 +1,18 @@
 import { supabaseAdmin } from '@/utils/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: RouteParams
 ) {
   try {
+    const params = await context.params;
     const { role } = await request.json();
+    
     if (!role) {
       return NextResponse.json({ error: 'Role is required' }, { status: 400 });
     }
@@ -24,10 +30,12 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: RouteParams
 ) {
   try {
+    const params = await context.params;
     const { error } = await supabaseAdmin.auth.admin.deleteUser(params.id);
+    
     if (error) throw error;
     return new NextResponse(null, { status: 204 });
   } catch (error: any) {

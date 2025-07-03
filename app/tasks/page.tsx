@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase'; // supabase ainda é usado para busca
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Database } from '@/types/database';
+import { UserRole } from '@/types/roles';
 import { useRealtimeTasks } from '@/hooks/useRealtimeTasks';
 import {
   useCreateTaskMutation,
@@ -67,11 +68,16 @@ export default function TasksPage() {
   // Hook para dados de tasks e real-time updates
   const { tasks, isLoading: tasksLoading, error: tasksError } = useRealtimeTasks();
 
+  // Mapear UserRole para o tipo esperado pelos hooks de tasks
+  const getTaskRole = (role: UserRole | undefined): 'admin' | 'user' => {
+    return role === 'admin' ? 'admin' : 'user';
+  };
+
   // Hooks de mutação para tasks
-  const userRole = (user?.role === 'admin' || user?.role === 'user') ? user.role : 'user';
-  const createTaskMutation = useCreateTaskMutation(userId, userRole);
-  const updateTaskMutation = useUpdateTaskMutation(userId, userRole);
-  const deleteTaskMutation = useDeleteTaskMutation(userId, userRole);
+  const taskRole = getTaskRole(user?.role);
+  const createTaskMutation = useCreateTaskMutation(userId, taskRole);
+  const updateTaskMutation = useUpdateTaskMutation(userId, taskRole);
+  const deleteTaskMutation = useDeleteTaskMutation(userId, taskRole);
   const updateTaskStatusMutation = useUpdateTaskStatusMutation(userId);
 
   const [users, setUsers] = useState<User[]>([]);
@@ -233,7 +239,7 @@ export default function TasksPage() {
       <div className="space-y-6">
         <KanbanBoard
           tasks={tasks}
-          userRole={userRole}
+          userRole={taskRole}
           onTaskDrop={(
             taskId: string,
             newStatus: string
@@ -257,7 +263,7 @@ export default function TasksPage() {
               onDelete={editingTask ? handleDeleteTask : undefined}
               onClose={handleCloseTaskCard}
               isLoading={createTaskMutation.isPending || updateTaskMutation.isPending || deleteTaskMutation.isPending}
-              userRole={userRole}
+              userRole={taskRole}
             />
           </DialogContent>
         </Dialog>
