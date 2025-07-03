@@ -75,16 +75,17 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
         if (!user?.id) return;
 
         const channel = supabase
-            .channel(`whatsapp_messages_list_${user.id}`)
+            .channel(`realtime_whatsapp_messages_${user.id}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `user_id=eq.${user.id}` },
                 (payload) => {
                     console.log('🔔 Nova mensagem recebida, invalidando cache da lista de chats...', payload);
                     queryClient.invalidateQueries({ queryKey: ['whatsapp_chat_list', user.id] });
+                    queryClient.invalidateQueries({ queryKey: ['whatsapp_messages', payload.new.lead_id] });
                 }
             )
             .subscribe((status, err) => {
                 if (status === 'SUBSCRIBED') {
-                    console.log(`Conectado ao canal de realtime da lista de chats para usuário ${user.id}`);
+                    console.log(`Conectado ao canal de realtime para o usuário ${user.id}`);
                 }
                 if (err) {
                     console.error('Erro na subscription da lista de chats:', err);
@@ -135,10 +136,7 @@ function WhatsappChatList({ onSelectLead }: WhatsappChatListProps) {
                 ) : (
                     filteredChats.map(chat => (
                         <button key={chat.lead.id} className={cn("flex w-full items-center gap-3 px-4 py-3 border-b transition-colors text-left", selectedLeadId === chat.lead.id ? "bg-muted" : "hover:bg-muted/60")} onClick={() => handleSelectLead(chat.lead)}>
-                            <Avatar className="h-12 w-12 flex-shrink-0">
-                                <AvatarImage src={undefined} alt={chat.lead.name || 'L'} />
-                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">{chat.lead.name?.charAt(0).toUpperCase() || 'L'}</AvatarFallback>
-                            </Avatar>
+                            <Avatar className="h-12 w-12 flex-shrink-0"><AvatarImage src={undefined} alt={chat.lead.name || 'L'} /><AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">{chat.lead.name?.charAt(0).toUpperCase() || 'L'}</AvatarFallback></Avatar>
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-center mb-1">
                                     <span className={cn("font-medium truncate", chat.unread_count && chat.unread_count > 0 ? "font-bold" : "")}>{chat.lead.name || 'Sem nome'}</span>
