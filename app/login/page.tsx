@@ -60,7 +60,15 @@ export default function LoginPage() {
     try {
       let response;
       if (isSignUp) {
-        response = await supabase.auth.signUp({ email, password });
+        response = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            data: {
+              role: 'user' // Define a role padrão no momento da criação
+            }
+          }
+        });
       } else {
         response = await supabase.auth.signInWithPassword({ email, password });
       }
