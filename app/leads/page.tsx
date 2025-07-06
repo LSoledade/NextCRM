@@ -69,6 +69,18 @@ export default function LeadsPage() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  // Debounce para searchTerm
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms debounce
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
+
   const [filters, setFilters] = useState<FilterState>({
     source: '',
     status: '',
@@ -107,8 +119,8 @@ export default function LeadsPage() {
       endDate.setDate(endDate.getDate() + 1);
       query = query.lt('created_at', endDate.toISOString().split('T')[0]);
     }
-    if (searchTerm) {
-      query = query.or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`);
+    if (debouncedSearchTerm) {
+      query = query.or(`name.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%,phone.ilike.%${debouncedSearchTerm}%`);
     }
     
     const { data, error } = await query;
@@ -128,7 +140,7 @@ export default function LeadsPage() {
     isError: leadsError,
     // refetch: refetchLeads, // refetchLeads não é mais necessário diretamente aqui, a invalidação cuidará disso
   } = useQuery({
-    queryKey: ['leads', user?.id, filters, searchTerm],
+    queryKey: ['leads', user?.id, filters, debouncedSearchTerm],
     queryFn: fetchLeads,
     enabled: !authLoading && !!user,
     // refetchOnWindowFocus: false, // Opcional: desabilitar refetch em foco da janela se causar problemas
@@ -637,7 +649,7 @@ export default function LeadsPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Actions Header */}
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-start gap-2">
           <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
             <Upload className="w-4 h-4 mr-2" />
             Importar
@@ -658,17 +670,23 @@ export default function LeadsPage() {
           </Button>
         </div>
 
-        {/* Filters */}
+        {/* Filtros e pesquisa centralizados no FilterPanel */}
         <FilterPanel
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           filters={filters}
           onFiltersChange={setFilters}
           availableTags={availableTags}
+          showCompanyFilter
+          showSourceFilter
+          showStatusFilter
+          showCampaignFilter
+          showTagFilter
+          showDateFilter
         />
 
         {/* Batch Operations */}
-        {selectedIds.length > 0 && ( // Show batch operations only if items are selected
+        {selectedIds.length > 0 && (
           <BatchOperations
             selectedCount={selectedIds.length}
             onClearSelection={() => setSelectedIds([])}

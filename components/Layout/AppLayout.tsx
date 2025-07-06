@@ -36,6 +36,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
+import WeatherWidget from '../ui/WeatherWidget';
 
 // Constants
 const SIDEBAR_EXPANDED_WIDTH = 240;
@@ -377,6 +378,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
             
             <div className="flex items-center gap-2 dropdown-fix">
+              <WeatherWidget />
               <ThemeToggle />
               <UserMenu />
             </div>

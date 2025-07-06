@@ -37,6 +37,12 @@ interface FilterPanelProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   availableTags: string[];
+  showCompanyFilter?: boolean;
+  showSourceFilter?: boolean;
+  showStatusFilter?: boolean;
+  showCampaignFilter?: boolean;
+  showTagFilter?: boolean;
+  showDateFilter?: boolean;
 }
 
 export default function FilterPanel({
@@ -45,6 +51,12 @@ export default function FilterPanel({
   filters,
   onFiltersChange,
   availableTags,
+  showCompanyFilter = true,
+  showSourceFilter = true,
+  showStatusFilter = true,
+  showCampaignFilter = true,
+  showTagFilter = true,
+  showDateFilter = true,
 }: FilterPanelProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -109,7 +121,7 @@ export default function FilterPanel({
 
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded} className="mb-6 space-y-4">
-      {/* Barra de Pesquisa e Filtros Básicos */}
+      {/* Barra de Pesquisa */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:items-end">
         <div className="relative md:col-span-4">
           <Search className="absolute w-4 h-4 left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -120,85 +132,6 @@ export default function FilterPanel({
             className="pl-10"
           />
         </div>
-
-        <div className="md:col-span-2 dropdown-fix">
-          <Label htmlFor="companyFilter" className="sr-only">Empresa</Label>
-          <OptimizedSelect
-            value={filters.company}
-            onValueChange={(value) => onFiltersChange({ ...filters, company: value === 'all' ? '' : value })}
-          >
-            <OptimizedSelectTrigger id="companyFilter">
-              <OptimizedSelectValue placeholder="Empresa" />
-            </OptimizedSelectTrigger>
-            <OptimizedSelectContent>
-              <OptimizedSelectItem value="all">Todas as Empresas</OptimizedSelectItem>
-              <OptimizedSelectItem value="Favale">Favale</OptimizedSelectItem>
-              <OptimizedSelectItem value="Pink">Pink</OptimizedSelectItem>
-              <OptimizedSelectItem value="Favale&Pink">Favale & Pink</OptimizedSelectItem>
-            </OptimizedSelectContent>
-          </OptimizedSelect>
-        </div>
-
-        <div className="md:col-span-2 dropdown-fix">
-          <Label htmlFor="sourceFilter" className="sr-only">Origem</Label>
-          <OptimizedSelect
-            value={filters.source}
-            onValueChange={(value) => onFiltersChange({ ...filters, source: value === 'all' ? '' : value })}
-          >
-            <OptimizedSelectTrigger id="sourceFilter">
-              <OptimizedSelectValue placeholder="Origem" />
-            </OptimizedSelectTrigger>
-            <OptimizedSelectContent>
-              <OptimizedSelectItem value="all">Todas as Origens</OptimizedSelectItem>
-              <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
-              <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
-              <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
-              <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
-              <OptimizedSelectItem value="WhatsApp">WhatsApp</OptimizedSelectItem>
-              <OptimizedSelectItem value="Google Ads">Google Ads</OptimizedSelectItem>
-            </OptimizedSelectContent>
-          </OptimizedSelect>
-        </div>
-
-        <div className="md:col-span-2 dropdown-fix">
-          <Label htmlFor="statusFilter" className="sr-only">Status</Label>
-          <OptimizedSelect
-            value={filters.status}
-            onValueChange={(value) => onFiltersChange({ ...filters, status: value === 'all' ? '' : value })}
-          >
-            <OptimizedSelectTrigger id="statusFilter">
-              <OptimizedSelectValue placeholder="Status" />
-            </OptimizedSelectTrigger>
-            <OptimizedSelectContent>
-              <OptimizedSelectItem value="all">Todos os Status</OptimizedSelectItem>
-              <OptimizedSelectItem value="New">Novo</OptimizedSelectItem>
-              <OptimizedSelectItem value="Contacted">Contatado</OptimizedSelectItem>
-              <OptimizedSelectItem value="Converted">Convertido</OptimizedSelectItem>
-              <OptimizedSelectItem value="Lost">Perdido</OptimizedSelectItem>
-            </OptimizedSelectContent>
-          </OptimizedSelect>
-        </div>
-
-        <div className="md:col-span-2 dropdown-fix">
-          <Label htmlFor="campaignFilter" className="sr-only">Campanha</Label>
-          <OptimizedSelect
-            value={filters.campaign}
-            onValueChange={(value) => onFiltersChange({ ...filters, campaign: value === 'all' ? '' : value })}
-          >
-            <OptimizedSelectTrigger id="campaignFilter">
-              <OptimizedSelectValue placeholder="Campanha" />
-            </OptimizedSelectTrigger>
-            <OptimizedSelectContent>
-              <OptimizedSelectItem value="all">Todas as Campanhas</OptimizedSelectItem>
-              <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
-              <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
-              <OptimizedSelectItem value="Email">E-mail</OptimizedSelectItem>
-              <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
-              <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
-            </OptimizedSelectContent>
-          </OptimizedSelect>
-        </div>
-
         <CollapsibleTrigger asChild className="md:col-span-2">
           <Button
             variant={hasActiveFilters ? "default" : "outline"}
@@ -232,50 +165,133 @@ export default function FilterPanel({
               Limpar Tudo ({activeFilterCount})
             </Button>
           </div>
-          
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <div className="dropdown-fix">
-              <Label htmlFor="tagFilterAdv" className="text-xs text-muted-foreground">Tag</Label>
-              <OptimizedSelect
-                value={filters.tag}
-                onValueChange={(value) => onFiltersChange({ ...filters, tag: value === 'all' ? '' : value })}
-              >
-                <OptimizedSelectTrigger id="tagFilterAdv">
-                  <OptimizedSelectValue placeholder="Tag" />
-                </OptimizedSelectTrigger>
-                <OptimizedSelectContent>
-                  <OptimizedSelectItem value="all">Todas</OptimizedSelectItem>
-                  {availableTags.map((tag) => (
-                    <OptimizedSelectItem key={tag} value={tag}>
-                      {tag}
-                    </OptimizedSelectItem>
-                  ))}
-                </OptimizedSelectContent>
-              </OptimizedSelect>
-            </div>
-            
-            <div className="dropdown-fix">
-              <Label htmlFor="dateRangeFilterAdv" className="text-xs text-muted-foreground">Período</Label>
-              <OptimizedSelect
-                value={filters.dateRange}
-                onValueChange={(value) => handleDateRangeChange(value === 'all' ? '' : value)}
-              >
-                <OptimizedSelectTrigger id="dateRangeFilterAdv">
-                  <OptimizedSelectValue placeholder="Período" />
-                </OptimizedSelectTrigger>
-                <OptimizedSelectContent>
-                  <OptimizedSelectItem value="all">Qualquer data</OptimizedSelectItem>
-                  <OptimizedSelectItem value="today">Hoje</OptimizedSelectItem>
-                  <OptimizedSelectItem value="last7days">Últimos 7 dias</OptimizedSelectItem>
-                  <OptimizedSelectItem value="last30days">Últimos 30 dias</OptimizedSelectItem>
-                  <OptimizedSelectItem value="thisMonth">Este mês</OptimizedSelectItem>
-                  <OptimizedSelectItem value="lastMonth">Mês passado</OptimizedSelectItem>
-                  <OptimizedSelectItem value="thisYear">Este ano</OptimizedSelectItem>
-                  <OptimizedSelectItem value="custom">Período personalizado</OptimizedSelectItem>
-                </OptimizedSelectContent>
-              </OptimizedSelect>
-            </div>
-            
+            {showCompanyFilter && (
+              <div className="dropdown-fix">
+                <Label htmlFor="companyFilter" className="text-xs text-muted-foreground">Empresa</Label>
+                <OptimizedSelect
+                  value={filters.company}
+                  onValueChange={(value) => onFiltersChange({ ...filters, company: value === 'all' ? '' : value })}
+                >
+                  <OptimizedSelectTrigger id="companyFilter">
+                    <OptimizedSelectValue placeholder="Empresa" />
+                  </OptimizedSelectTrigger>
+                  <OptimizedSelectContent>
+                    <OptimizedSelectItem value="all">Todas as Empresas</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Favale">Favale</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Pink">Pink</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Favale&Pink">Favale & Pink</OptimizedSelectItem>
+                  </OptimizedSelectContent>
+                </OptimizedSelect>
+              </div>
+            )}
+            {showSourceFilter && (
+              <div className="dropdown-fix">
+                <Label htmlFor="sourceFilter" className="text-xs text-muted-foreground">Origem</Label>
+                <OptimizedSelect
+                  value={filters.source}
+                  onValueChange={(value) => onFiltersChange({ ...filters, source: value === 'all' ? '' : value })}
+                >
+                  <OptimizedSelectTrigger id="sourceFilter">
+                    <OptimizedSelectValue placeholder="Origem" />
+                  </OptimizedSelectTrigger>
+                  <OptimizedSelectContent>
+                    <OptimizedSelectItem value="all">Todas as Origens</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
+                    <OptimizedSelectItem value="WhatsApp">WhatsApp</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Google Ads">Google Ads</OptimizedSelectItem>
+                  </OptimizedSelectContent>
+                </OptimizedSelect>
+              </div>
+            )}
+            {showStatusFilter && (
+              <div className="dropdown-fix">
+                <Label htmlFor="statusFilter" className="text-xs text-muted-foreground">Status</Label>
+                <OptimizedSelect
+                  value={filters.status}
+                  onValueChange={(value) => onFiltersChange({ ...filters, status: value === 'all' ? '' : value })}
+                >
+                  <OptimizedSelectTrigger id="statusFilter">
+                    <OptimizedSelectValue placeholder="Status" />
+                  </OptimizedSelectTrigger>
+                  <OptimizedSelectContent>
+                    <OptimizedSelectItem value="all">Todos os Status</OptimizedSelectItem>
+                    <OptimizedSelectItem value="New">Novo</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Contacted">Contatado</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Converted">Convertido</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Lost">Perdido</OptimizedSelectItem>
+                  </OptimizedSelectContent>
+                </OptimizedSelect>
+              </div>
+            )}
+            {showCampaignFilter && (
+              <div className="dropdown-fix">
+                <Label htmlFor="campaignFilter" className="text-xs text-muted-foreground">Campanha</Label>
+                <OptimizedSelect
+                  value={filters.campaign}
+                  onValueChange={(value) => onFiltersChange({ ...filters, campaign: value === 'all' ? '' : value })}
+                >
+                  <OptimizedSelectTrigger id="campaignFilter">
+                    <OptimizedSelectValue placeholder="Campanha" />
+                  </OptimizedSelectTrigger>
+                  <OptimizedSelectContent>
+                    <OptimizedSelectItem value="all">Todas as Campanhas</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Instagram">Instagram</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Facebook">Facebook</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Email">E-mail</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
+                  </OptimizedSelectContent>
+                </OptimizedSelect>
+              </div>
+            )}
+            {showTagFilter && (
+              <div className="dropdown-fix">
+                <Label htmlFor="tagFilterAdv" className="text-xs text-muted-foreground">Tag</Label>
+                <OptimizedSelect
+                  value={filters.tag}
+                  onValueChange={(value) => onFiltersChange({ ...filters, tag: value === 'all' ? '' : value })}
+                >
+                  <OptimizedSelectTrigger id="tagFilterAdv">
+                    <OptimizedSelectValue placeholder="Tag" />
+                  </OptimizedSelectTrigger>
+                  <OptimizedSelectContent>
+                    <OptimizedSelectItem value="all">Todas</OptimizedSelectItem>
+                    {availableTags.map((tag) => (
+                      <OptimizedSelectItem key={tag} value={tag}>
+                        {tag}
+                      </OptimizedSelectItem>
+                    ))}
+                  </OptimizedSelectContent>
+                </OptimizedSelect>
+              </div>
+            )}
+            {showDateFilter && (
+              <div className="dropdown-fix">
+                <Label htmlFor="dateRangeFilterAdv" className="text-xs text-muted-foreground">Período</Label>
+                <OptimizedSelect
+                  value={filters.dateRange}
+                  onValueChange={(value) => handleDateRangeChange(value === 'all' ? '' : value)}
+                >
+                  <OptimizedSelectTrigger id="dateRangeFilterAdv">
+                    <OptimizedSelectValue placeholder="Período" />
+                  </OptimizedSelectTrigger>
+                  <OptimizedSelectContent>
+                    <OptimizedSelectItem value="all">Qualquer data</OptimizedSelectItem>
+                    <OptimizedSelectItem value="today">Hoje</OptimizedSelectItem>
+                    <OptimizedSelectItem value="last7days">Últimos 7 dias</OptimizedSelectItem>
+                    <OptimizedSelectItem value="last30days">Últimos 30 dias</OptimizedSelectItem>
+                    <OptimizedSelectItem value="thisMonth">Este mês</OptimizedSelectItem>
+                    <OptimizedSelectItem value="lastMonth">Mês passado</OptimizedSelectItem>
+                    <OptimizedSelectItem value="thisYear">Este ano</OptimizedSelectItem>
+                    <OptimizedSelectItem value="custom">Período personalizado</OptimizedSelectItem>
+                  </OptimizedSelectContent>
+                </OptimizedSelect>
+              </div>
+            )}
             {filters.dateRange === 'custom' && (
               <>
                 <div>

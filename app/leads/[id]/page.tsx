@@ -70,6 +70,51 @@ export default function LeadDetailsPage() {
   });
 
   useEffect(() => {
+    const loadLeadDetails = async () => {
+      if (!user || !params.id) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: leadData, error: leadError } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('id', params.id as string)
+          .eq('user_id', user.id)
+          .single();
+
+        if (leadError) {
+          if (leadError.code === 'PGRST116') setError('Lead não encontrado.');
+          else throw leadError;
+          setLead(null);
+          return;
+        }
+
+        setLead(leadData);
+        setEditForm({
+          name: leadData.name,
+          email: leadData.email || '',
+          phone: leadData.phone || '',
+          status: leadData.status as any,
+          source: leadData.source || '',
+        });
+
+        const { data: tasksData, error: tasksError } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('related_lead_id', params.id as string)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (tasksError) throw tasksError;
+        setTasks(tasksData || []);
+      } catch (err: any) {
+        console.error('Erro ao carregar detalhes do lead:', err);
+        setError(err.message || 'Erro ao carregar dados.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (user && params.id) {
       loadLeadDetails();
     }
