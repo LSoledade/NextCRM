@@ -37,6 +37,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import WeatherWidget from '../ui/WeatherWidget';
+import Image from 'next/image';
 
 // Constants
 const SIDEBAR_EXPANDED_WIDTH = 240;
@@ -191,15 +192,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
             variant={isActive ? "default" : "ghost"}
             size={collapsed ? "icon" : "default"}
             className={cn(
-              "w-full transition-all duration-200 ease-out",
+              "w-full transition-all duration-300 ease-out rounded-xl",
               collapsed ? "h-12 justify-center" : "h-12 justify-start",
               isActive && [
-                "bg-primary text-primary-foreground shadow-sm",
-                "hover:bg-primary/90"
+                "bg-background text-foreground border-0",
+                "shadow-[inset_3px_3px_6px_rgba(0,0,0,0.08),inset_-3px_-3px_6px_rgba(255,255,255,0.6),inset_6px_6px_12px_rgba(0,0,0,0.04),inset_-6px_-6px_12px_rgba(255,255,255,0.4)]",
+                "hover:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7),inset_8px_8px_16px_rgba(0,0,0,0.05),inset_-8px_-8px_16px_rgba(255,255,255,0.5)]",
+                "dark:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.25),inset_-3px_-3px_6px_rgba(255,255,255,0.05),inset_6px_6px_12px_rgba(0,0,0,0.15),inset_-6px_-6px_12px_rgba(255,255,255,0.02)]",
+                "dark:hover:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.3),inset_-4px_-4px_8px_rgba(255,255,255,0.06),inset_8px_8px_16px_rgba(0,0,0,0.2),inset_-8px_-8px_16px_rgba(255,255,255,0.03)]"
               ],
               !isActive && [
-                "hover:bg-accent/50 hover:text-accent-foreground",
-                "text-muted-foreground hover:text-foreground"
+                "hover:bg-accent/30 hover:text-accent-foreground",
+                "text-muted-foreground hover:text-foreground",
+                "hover:shadow-[2px_2px_6px_rgba(0,0,0,0.08),-2px_-2px_6px_rgba(255,255,255,0.6),4px_4px_12px_rgba(0,0,0,0.04),-4px_-4px_12px_rgba(255,255,255,0.4)]",
+                "dark:hover:shadow-[2px_2px_6px_rgba(0,0,0,0.2),-2px_-2px_6px_rgba(255,255,255,0.03),4px_4px_12px_rgba(0,0,0,0.1),-4px_-4px_12px_rgba(255,255,255,0.015)]"
               ]
             )}
             onClick={() => handleNavigation(item.path)}
@@ -238,21 +244,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
       )}>
         <div className="flex items-center gap-3">
           <div className={cn(
-            "rounded-xl bg-primary/10 p-2 transition-all duration-200",
+            "rounded-xl bg-primary/10 p-2 transition-all duration-200 flex items-center justify-center",
             collapsed && "bg-primary/15"
           )}>
-            <Dumbbell className={cn(
-              "text-primary transition-all duration-200",
-              collapsed ? "h-6 w-6" : "h-7 w-7"
-            )} />
+            <Image 
+              src="/logotipofavale.svg" 
+              alt="Favale Logo" 
+              width={collapsed ? 32 : 36}
+              height={collapsed ? 32 : 36}
+              className="transition-all duration-200"
+            />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
               <h1 className="text-lg font-bold text-foreground leading-tight">
-                FavaleTrainer
+                Favale Manager
               </h1>
               <p className="text-xs text-muted-foreground">
-                Personal CRM
+                Favale Físico Saúde
               </p>
             </div>
           )}
@@ -386,7 +395,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
           {/* Desktop Main Content */}
           <main className="flex-1 overflow-hidden bg-background">
-            <div className="h-full p-6">
+            <div className="h-full p-4">
               <div className="h-full main-content-container rounded-3xl shadow-xl overflow-hidden backdrop-blur-sm no-transform">
                 <div className="h-full p-8 overflow-auto">
                   {children}
