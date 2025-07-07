@@ -107,8 +107,7 @@ async function updateSupabaseConnectionStatus(
     const { error } = await supabase
       .from('whatsapp_connections')
       .upsert(connectionData, {
-        onConflict: 'user_id, instance_name', // Assumes user_id and instance_name form a unique constraint
-        // Or, if instance_name is globally unique: onConflict: 'instance_name'
+        onConflict: 'instance_name', // Use instance_name as the unique key for upsert
       });
 
     if (error) {

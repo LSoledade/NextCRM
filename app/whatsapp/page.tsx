@@ -81,10 +81,17 @@ function ChatViewSkeleton() {
 
 // Componente de status de conexão
 function ConnectionStatus() {
-  const { connectionStatus } = useWhatsAppConnection();
-  
+  const { connectionState } = useWhatsAppConnection();
+  if (!connectionState) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-gray-50 dark:bg-gray-950/20">
+        <Settings className="w-4 h-4 text-gray-500 animate-spin" />
+        <span className="text-gray-500">Verificando status da conexão...</span>
+      </div>
+    );
+  }
   const getStatusInfo = () => {
-    switch (connectionStatus.status) {
+    switch (connectionState.status) {
       case 'connected':
         return {
           icon: Wifi,
@@ -130,9 +137,9 @@ function ConnectionStatus() {
     <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg text-sm", status.bgColor)}>
       <Icon className={cn("w-4 h-4", status.color)} />
       <span className={status.color}>{status.text}</span>
-      {connectionStatus.phoneNumber && (
+      {connectionState.phoneNumber && (
         <span className="text-xs text-muted-foreground ml-auto">
-          {connectionStatus.phoneNumber}
+          {connectionState.phoneNumber}
         </span>
       )}
     </div>
@@ -142,7 +149,7 @@ function ConnectionStatus() {
 export default function WhatsappPage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('chats');
-  const { connectionStatus } = useWhatsAppConnection();
+  const { connectionState } = useWhatsAppConnection();
 
   return (
     <ErrorBoundary fallbackMessage="Erro na página do WhatsApp">
