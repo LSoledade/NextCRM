@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertTriangle, Dumbbell } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 function CustomInput({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
@@ -29,7 +30,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
@@ -58,34 +58,17 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      let response;
-      if (isSignUp) {
-        response = await supabase.auth.signUp({ 
-          email, 
-          password,
-          options: {
-            data: {
-              role: 'user' // Define a role padrão no momento da criação
-            }
-          }
-        });
-      } else {
-        response = await supabase.auth.signInWithPassword({ email, password });
-      }
-
+      // Removido signUp, só login
+      const response = await supabase.auth.signInWithPassword({ email, password });
       const { data, error: authError } = response;
 
       if (authError) {
-        setError(authError.message || (isSignUp ? 'Erro ao criar conta.' : 'Email ou senha incorretos.'));
+        setError(authError.message || 'Email ou senha incorretos.');
         return;
       }
 
       if (data.user) {
-        if (isSignUp && data.session === null) {
-          setError("Conta criada! Verifique seu email para confirmação antes de fazer login.");
-        } else {
-          router.push('/dashboard');
-        }
+        router.push('/dashboard');
       }
     } catch (err: any) {
       setError(err.message || 'Ocorreu um erro. Tente novamente.');
@@ -254,9 +237,17 @@ export default function LoginPage() {
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: "spring", duration: 0.8 }}
-                  className="mx-auto w-10 h-10 rounded-full border border-border flex items-center justify-center relative overflow-hidden bg-primary/10"
+                  className="mx-auto w-16 h-16 rounded-full border border-border flex items-center justify-center relative overflow-hidden bg-primary/10"
                 >
-                  <Dumbbell className="w-5 h-5 text-primary" />
+                  {/* Logotipo Favale */}
+                  <Image
+                    src="/logotipofavale.svg"
+                    alt="Favale Logotipo"
+                    width={48}
+                    height={48}
+                    className="object-contain"
+                    priority
+                  />
                   {/* Inner lighting effect */}
                   <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent opacity-50" />
                 </motion.div>
@@ -276,7 +267,7 @@ export default function LoginPage() {
                   transition={{ delay: 0.3 }}
                   className="text-muted-foreground text-xs"
                 >
-                  {isSignUp ? 'Crie sua conta para começar' : 'Entre com sua conta para acessar o sistema'}
+                  Entre com sua conta para acessar o sistema
                 </motion.p>
               </div>
 
@@ -293,7 +284,7 @@ export default function LoginPage() {
               )}
 
               {/* Login form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit}>
                 <motion.div className="space-y-3">
                   {/* Email input */}
                   <motion.div 
@@ -388,8 +379,8 @@ export default function LoginPage() {
 
                 {/* Submit button */}
                 <motion.button
-                  whileHover={{ scale: 1.01 }} // Reduzido de 1.02
-                  whileTap={{ scale: 0.99 }} // Reduzido de 0.98
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
                   type="submit"
                   disabled={loading}
                   className="w-full relative group/button mt-5"
@@ -435,57 +426,11 @@ export default function LoginPage() {
                           exit={{ opacity: 0 }}
                           className="flex items-center justify-center gap-1 text-sm font-medium"
                         >
-                          {isSignUp ? 'Criar Conta' : 'Entrar'}
+                          Entrar
                           <ArrowRight className="w-3 h-3 group-hover/button:translate-x-1 transition-transform duration-300" />
                         </motion.span>
                       )}
                     </AnimatePresence>
-                  </div>
-                </motion.button>
-
-                {/* Divider */}
-                <div className="relative mt-2 mb-5 flex items-center">
-                  <div className="flex-grow border-t border-border"></div>
-                  <motion.span 
-                    className="mx-3 text-xs text-muted-foreground"
-                    initial={{ opacity: 0.7 }}
-                    animate={{ opacity: [0.7, 0.9, 0.7] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    ou
-                  </motion.span>
-                  <div className="flex-grow border-t border-border"></div>
-                </div>
-
-                {/* Toggle Sign Up/Sign In */}
-                <motion.button
-                  whileHover={{ scale: 1.005 }} // Reduzido ainda mais
-                  whileTap={{ scale: 0.995 }}
-                  type="button"
-                  onClick={() => {
-                    setIsSignUp(!isSignUp);
-                    setError(null);
-                  }}
-                  disabled={loading}
-                  className="w-full relative group/toggle"
-                >
-                  <div className="absolute inset-0 bg-primary/5 rounded-lg blur opacity-0 group-hover/toggle:opacity-50 transition-opacity duration-300 pointer-events-none" />
-                  
-                  <div className="relative overflow-hidden bg-card/80 text-foreground font-medium h-10 rounded-lg border border-border hover:border-primary/50 transition-all duration-300 flex items-center justify-center gap-2">
-                    <span className="text-muted-foreground group-hover/toggle:text-foreground transition-colors text-xs">
-                      {isSignUp ? 'Já tenho uma conta' : 'Criar Nova Conta'}
-                    </span>
-                    
-                    {/* Button hover effect */}
-                    <motion.div 
-                      className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/3 to-primary/0 pointer-events-none"
-                      initial={{ x: '-100%' }}
-                      whileHover={{ x: '100%' }}
-                      transition={{ 
-                        duration: 1.2, 
-                        ease: "easeInOut"
-                      }}
-                    />
                   </div>
                 </motion.button>
               </form>

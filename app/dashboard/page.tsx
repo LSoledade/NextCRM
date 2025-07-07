@@ -104,7 +104,7 @@ function KpiCard({
 function GreetingWidget() {
   const { user } = useAuth();
   const [greeting, setGreeting] = useState('');
-  
+
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting('Bom dia');
@@ -115,15 +115,33 @@ function GreetingWidget() {
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
 
   return (
-    <Card className="text-white bg-gradient-to-r from-primary to-red-500">
-      <CardContent className="p-6">
-        <h2 className="mb-1 text-2xl font-bold">
-          {greeting}, {userName}! 👋
-        </h2>
-        <p className="opacity-90">
-          Bem-vindo ao seu painel de controle. Aqui você pode acompanhar o desempenho do seu negócio.
-        </p>
-      </CardContent>
+    <Card
+      className={cn(
+        "min-h-[112px] md:min-h-[120px] flex items-center px-6 py-4 rounded-2xl border border-border/70",
+        "bg-card",
+        // Sombra neomórfica ultra suave e deslocada para baixo
+        "shadow-[1px_1px_2px_rgba(0,0,0,0.1),-1px_-1px_2px_rgba(255,255,255,0.08)]"
+      )}
+    >
+      <div className="flex items-center gap-5 w-full">
+        <div className="flex-shrink-0 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shadow-inner">
+          <span className="text-3xl select-none" aria-label="Mão acenando">👋</span>
+        </div>
+        <div className="flex flex-col justify-center flex-1 min-w-0">
+          <h2 className="text-lg md:text-xl font-semibold text-foreground mb-2 truncate">
+            {greeting}, {userName}, de volta ao trabalho?
+          </h2>
+          {/* Lista de dicas práticas para o usuário */}
+          <div className="text-muted-foreground text-sm md:text-base leading-snug">
+            <ul className="list-disc list-inside space-y-1">
+              <li>Priorize suas tarefas mais importantes</li>
+              <li>Use etiquetas para organizar seus leads</li>
+              <li>Agende follow-ups regularmente</li>
+              <li>Verifique métricas para melhores insights</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }

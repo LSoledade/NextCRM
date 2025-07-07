@@ -202,9 +202,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 "dark:hover:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.3),inset_-4px_-4px_8px_rgba(255,255,255,0.06),inset_8px_8px_16px_rgba(0,0,0,0.2),inset_-8px_-8px_16px_rgba(255,255,255,0.03)]"
               ],
               !isActive && [
-                "hover:bg-accent/30 hover:text-accent-foreground",
                 "text-muted-foreground hover:text-foreground",
-                "hover:shadow-[2px_2px_6px_rgba(0,0,0,0.08),-2px_-2px_6px_rgba(255,255,255,0.6),4px_4px_12px_rgba(0,0,0,0.04),-4px_-4px_12px_rgba(255,255,255,0.4)]",
+                "hover:shadow-[2px_2px_6px_rgba(0,0,0,0.08),4px_4px_12px_rgba(0,0,0,0.04)]",
                 "dark:hover:shadow-[2px_2px_6px_rgba(0,0,0,0.2),-2px_-2px_6px_rgba(255,255,255,0.03),4px_4px_12px_rgba(0,0,0,0.1),-4px_-4px_12px_rgba(255,255,255,0.015)]"
               ]
             )}
@@ -280,7 +279,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="dropdown-fix">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Avatar className="cursor-pointer">
+          <Avatar className="cursor-pointer transition-all duration-300 ease-out rounded-full hover:bg-red-100 dark:hover:bg-red-900/20 hover:shadow-[0_0_8px_rgba(239,68,68,0.5)] dark:hover:shadow-[0_0_8px_rgba(239,68,68,0.5)]">
             <AvatarImage src={user?.user_metadata?.avatar_url} />
             <AvatarFallback>{userInitials}</AvatarFallback>
           </Avatar>
