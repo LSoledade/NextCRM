@@ -44,28 +44,50 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
 
 // Componente de status de conexão atualizado
 const ConnectionStatusAlert = () => {
-  const { connectionStatus } = useWhatsAppConnection();
+  // Updated to use the new hook structure
+  const { connectionState, isLoadingStatus } = useWhatsAppConnection();
 
-  if (connectionStatus.status === 'connected') {
-    return null; // Não mostrar nada se estiver conectado
+  if (isLoadingStatus && !connectionState) {
+    return (
+      <Alert className="mb-4 bg-blue-50 border-blue-200 text-blue-700">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <AlertDescription>
+          Verificando status da conexão WhatsApp...
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!connectionState || connectionState.status === 'connected') {
+    return null; // Don't show if connected or state is not yet available (after initial load)
   }
 
   const getTitle = () => {
-    if (connectionStatus.status === 'error') return 'Erro na Conexão WhatsApp';
-    if (connectionStatus.status === 'disconnected') return 'WhatsApp Desconectado';
-    return 'Conexão do WhatsApp indisponível';
+    if (connectionState.status === 'error') return 'Erro na Conexão WhatsApp';
+    if (connectionState.status === 'disconnected') return 'WhatsApp Desconectado';
+    if (connectionState.status === 'qr_ready') return 'WhatsApp Requer Atenção';
+    if (connectionState.status === 'connecting') return 'Conectando ao WhatsApp';
+    return 'Status da Conexão WhatsApp';
   };
 
   const getDescription = () => {
-    if (connectionStatus.status === 'error') {
-      return `Erro: ${connectionStatus.error || 'Verifique o status do serviço.'}`;
+    if (connectionState.status === 'error') {
+      return `Erro: ${connectionState.errorMessage || connectionState.rawError || 'Verifique o status do serviço.'}`;
+    }
+    if (connectionState.status === 'qr_ready') {
+      return 'Escaneie o QR Code para ativar a conexão WhatsApp.';
+    }
+    if (connectionState.status === 'connecting') {
+      return 'Aguardando conexão com o WhatsApp...';
     }
     return 'Conecte seu WhatsApp para enviar e receber mensagens.';
   };
 
+  const alertVariant = connectionState.status === 'error' || connectionState.status === 'disconnected' ? 'destructive' : 'warning';
+
   return (
-    <Alert variant="destructive" className="mb-4">
-      <WifiOff className="h-4 w-4" />
+    <Alert variant={alertVariant} className="mb-4">
+      {connectionState.status === 'error' || connectionState.status === 'disconnected' ? <WifiOff className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
       <AlertDescription>
         <div className="flex justify-between items-center">
           <div>
@@ -91,7 +113,8 @@ export default function WhatsappChat({ lead }: WhatsappChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { connectionStatus } = useWhatsAppConnection();
+  // Updated to use the new hook structure
+  const { connectionState } = useWhatsAppConnection();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -177,15 +200,15 @@ export default function WhatsappChat({ lead }: WhatsappChatProps) {
       return;
     }
 
-    // 1. Verificar status da conexão antes de enviar
-    if (connectionStatus.status !== 'connected') {
+    // 1. Verificar status da conexão antes de enviar (using new connectionState)
+    if (connectionState?.status !== 'connected') {
       toast({
         title: 'WhatsApp não conectado',
         description: 'É necessário estar conectado para enviar mensagens.',
         variant: 'destructive',
         action: (
-          <ToastAction altText="Verificar Conexão">
-            <Link href="/whatsapp">Verificar</Link>
+          <ToastAction altText="Verificar Conexão" onClick={() => window.location.href='/whatsapp'}>
+            Verificar
           </ToastAction>
         ),
       });
@@ -326,15 +349,15 @@ export default function WhatsappChat({ lead }: WhatsappChatProps) {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               className="flex-1"
-              // 2. Desabilitar input se não estiver conectado
-              disabled={connectionStatus.status !== 'connected' || sending}
+              // 2. Desabilitar input se não estiver conectado (using new connectionState)
+              disabled={connectionState?.status !== 'connected' || sending}
             />
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-            <Button type="button" variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={connectionStatus.status !== 'connected' || sending}>
+            <Button type="button" variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={connectionState?.status !== 'connected' || sending}>
               <Paperclip className="w-4 h-4" />
             </Button>
-            <Button type="submit" size="icon" disabled={connectionStatus.status !== 'connected' || sending || (!newMessage.trim() && !file)}>
-              {sending ? <div className="loader-sm" /> : <Send className="w-4 h-4" />}
+            <Button type="submit" size="icon" disabled={connectionState?.status !== 'connected' || sending || (!newMessage.trim() && !file)}>
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           </form>
           {file && (

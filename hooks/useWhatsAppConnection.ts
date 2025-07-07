@@ -1,109 +1,120 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 
-// 1. Simplificar a interface de status
-export interface WhatsAppConnectionStatus {
-  status: 'connecting' | 'connected' | 'disconnected' | 'error';
-  error?: string;
+// Interface for the data returned by the /api/whatsapp/instance GET endpoint
+export interface WhatsAppInstanceData {
+  status: 'connecting' | 'connected' | 'disconnected' | 'error' | 'qr_ready';
+  message?: string;
+  qrCode?: string | null;
+  pairingCode?: string | null;
+  profile?: {
+    name?: string;
+    number?: string;
+  } | null;
+  error?: string | null; // Error message from the API
+}
+
+// Interface for the hook's return, which might slightly differ from API response
+export interface WhatsAppConnectionState {
+  status: 'connecting' | 'connected' | 'disconnected' | 'error' | 'qr_ready';
+  qrCode?: string | null;
+  pairingCode?: string | null;
+  profileName?: string | null;
   phoneNumber?: string | null;
-  instanceName?: string | null;
+  errorMessage?: string | null; // User-facing error message
+  rawError?: string | null; // Actual error from API if any
+}
+
+const WHATSAPP_INSTANCE_QUERY_KEY = 'whatsappInstanceStatus';
+
+async function fetchInstanceStatus(): Promise<WhatsAppInstanceData> {
+  const response = await fetch('/api/whatsapp/instance');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Falha ao buscar status da conexão.' }));
+    throw new Error(errorData.error || `Erro HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function performInstanceAction(action: 'connect' | 'reconnect' | 'disconnect'): Promise<any> {
+  const response = await fetch('/api/whatsapp/instance', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: `Falha ao executar ação: ${action}`}));
+    throw new Error(errorData.error || `Erro HTTP ${response.status} ao executar ${action}`);
+  }
+  return response.json();
 }
 
 export function useWhatsAppConnection() {
   const { user } = useAuth();
-  const [connectionStatus, setConnectionStatus] = useState<WhatsAppConnectionStatus>({
-    status: 'connecting',
+  const queryClient = useQueryClient();
+
+  const statusQuery = useQuery<WhatsAppInstanceData, Error, WhatsAppConnectionState>({
+    queryKey: [WHATSAPP_INSTANCE_QUERY_KEY, user?.id],
+    queryFn: fetchInstanceStatus,
+    enabled: !!user?.id, // Only run query if user is logged in
+    refetchInterval: 30000, // Poll every 30 seconds
+    // staleTime: 15000, // Consider data fresh for 15 seconds
+    select: (data): WhatsAppConnectionState => {
+      // Map API data to the desired hook state
+      return {
+        status: data.status, // API status should now align more closely
+        qrCode: data.qrCode,
+        pairingCode: data.pairingCode,
+        profileName: data.profile?.name,
+        phoneNumber: data.profile?.number,
+        errorMessage: data.message, // `message` from API can serve as errorMessage
+        rawError: data.error,
+      };
+    },
   });
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Ref para o intervalo de polling
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const handleMutationSuccess = () => {
+    // When an action is successful, invalidate the status query to refetch immediately
+    queryClient.invalidateQueries({ queryKey: [WHATSAPP_INSTANCE_QUERY_KEY, user?.id] });
+    // Optionally, can also optimistically update the cache if the mutation response gives enough info
+  };
 
-  // 2. Simplificar a função de busca de status
-  const fetchStatus = useCallback(async () => {
-    if (!user?.id) {
-      setIsLoading(false);
-      return;
-    }
+  const connectMutation = useMutation({
+    mutationFn: () => performInstanceAction('connect'),
+    onSuccess: handleMutationSuccess,
+  });
 
-    setIsLoading(true);
-    try {
-      // Primeiro tenta o endpoint regular, se falhar usa o admin
-      let response = await fetch('/api/whatsapp/status');
-      let data = await response.json();
+  const reconnectMutation = useMutation({
+    mutationFn: () => performInstanceAction('reconnect'),
+    onSuccess: handleMutationSuccess,
+  });
 
-      // Se não autorizado, tenta endpoint admin (para debugging)
-      if (response.status === 401) {
-        console.log('🔑 Tentando endpoint admin para status...');
-        response = await fetch('/api/whatsapp/admin-status');
-        data = await response.json();
-      }
-
-      if (response.ok) {
-        // O status da API da Evolution é 'open', 'close', 'connecting', etc.
-        // Mapeamos para os status do nosso frontend.
-        let newStatus: WhatsAppConnectionStatus['status'] = 'disconnected';
-        if (data.state === 'connected' || data.instanceStatus === 'open') {
-          newStatus = 'connected';
-        } else if (data.state === 'connecting') {
-          newStatus = 'connecting';
-        } else if (data.state === 'disconnected' || data.instanceStatus === 'close') {
-          newStatus = 'disconnected';
-        }
-
-        setConnectionStatus({
-          status: newStatus,
-          // Extrair informações do perfil se disponível
-          phoneNumber: data.profile?.number || data.profile?.name,
-          instanceName: 'Leonardo', // Hardcoded para agora
-        });
-      } else {
-        setConnectionStatus({
-          status: 'error',
-          error: data.error || 'Falha ao buscar status da conexão.',
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao buscar status da conexão:', error);
-      setConnectionStatus({
-        status: 'error',
-        error: 'Erro de comunicação com o servidor.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.id]);
-
-  // 3. Usar useEffect para polling
-  useEffect(() => {
-    if (!user?.id) {
-      // Limpa o status se o usuário deslogar
-      setConnectionStatus({ status: 'disconnected' });
-      return;
-    }
-
-    // Busca o status imediatamente ao carregar o hook
-    fetchStatus();
-
-    // Configura o polling para verificar o status a cada 30 segundos
-    intervalRef.current = setInterval(fetchStatus, 30000); // 30 segundos
-
-    // Função de limpeza para remover o intervalo quando o componente for desmontado
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [user?.id, fetchStatus]);
-
-  // 4. Manter apenas as funções relevantes
-  const refreshStatus = useCallback(async () => {
-    await fetchStatus();
-  }, [fetchStatus]);
+  const disconnectMutation = useMutation({
+    mutationFn: () => performInstanceAction('disconnect'),
+    onSuccess: handleMutationSuccess,
+  });
 
   return {
-    connectionStatus,
-    isLoading,
-    refreshStatus,
+    // Query results for connection status
+    connectionState: statusQuery.data, // This will be of type WhatsAppConnectionState
+    isLoadingStatus: statusQuery.isLoading,
+    isFetchingStatus: statusQuery.isFetching,
+    statusError: statusQuery.error,
+    refetchStatus: statusQuery.refetch,
+
+    // Mutations for actions
+    connect: connectMutation.mutateAsync,
+    isConnecting: connectMutation.isPending,
+    connectError: connectMutation.error,
+
+    reconnect: reconnectMutation.mutateAsync,
+    isReconnecting: reconnectMutation.isPending,
+    reconnectError: reconnectMutation.error,
+
+    disconnect: disconnectMutation.mutateAsync,
+    isDisconnecting: disconnectMutation.isPending,
+    disconnectError: disconnectMutation.error,
   };
 }
