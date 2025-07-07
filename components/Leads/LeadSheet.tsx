@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ClipboardList, User, Edit2, PlusCircle, MessageCircle } from 'lucide-react';
+import { ClipboardList, User, Edit2, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { getStudentBadgeStyles, type Company } from '@/lib/company-utils';
 import { cn } from '@/lib/utils';
-import WhatsappChat from './WhatsappChat';
+
 
 // Types
 export type Lead = Database['public']['Tables']['leads']['Row'];
@@ -214,10 +214,9 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
           )}
         </div>
         <Tabs value={tab} onValueChange={setTab} className="w-full mt-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="info"><User className="w-4 h-4 mr-2" /> Informações</TabsTrigger>
             <TabsTrigger value="tasks"><ClipboardList className="w-4 h-4 mr-2" /> Anotações</TabsTrigger>
-            <TabsTrigger value="whatsapp"><MessageCircle className="w-4 h-4 mr-2" /> WhatsApp</TabsTrigger>
           </TabsList>
           <TabsContent value="info" className="pt-6">
             <Card>
@@ -315,15 +314,7 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
               </CardContent>
             </Card>
           </TabsContent>
-          <TabsContent value="whatsapp" className="pt-6">
-            {lead ? (
-              <WhatsappChat lead={lead} />
-            ) : (
-              <div className="flex items-center justify-center h-64">
-                <p>Carregando dados do chat...</p>
-              </div>
-            )}
-          </TabsContent>
+
         </Tabs>
       </SheetContent>
     </Sheet>

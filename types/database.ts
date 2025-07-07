@@ -184,50 +184,6 @@ export interface Database {
           user_id?: string;
         };
       };
-      whatsapp_messages: {
-        Row: {
-          id: number;
-          lead_id: string;
-          user_id: string;
-          sender_jid: string;
-          message_id: string | null;
-          message_timestamp: string;
-          message_type: string;
-          message_content: string | null;
-          media_url: string | null;
-          mime_type: string | null;
-          is_from_lead: boolean;
-          created_at: string;
-        };
-        Insert: {
-          id?: number;
-          lead_id: string;
-          user_id: string;
-          sender_jid: string;
-          message_id?: string | null;
-          message_timestamp: string;
-          message_type?: string;
-          message_content?: string | null;
-          media_url?: string | null;
-          mime_type?: string | null;
-          is_from_lead: boolean;
-          created_at?: string;
-        };
-        Update: {
-          id?: number;
-          lead_id?: string;
-          user_id?: string;
-          sender_jid?: string;
-          message_id?: string | null;
-          message_timestamp?: string;
-          message_type?: string;
-          message_content?: string | null;
-          media_url?: string | null;
-          mime_type?: string | null;
-          is_from_lead?: boolean;
-          created_at?: string;
-        };
-      };
     };
   };
 }

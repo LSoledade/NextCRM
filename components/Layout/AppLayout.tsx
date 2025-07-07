@@ -48,7 +48,7 @@ const MOBILE_BREAKPOINT = 768;
 const menuItems = [
   { text: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { text: 'Leads', icon: Users, path: '/leads' },
-  { text: 'WhatsApp', icon: MessageSquare, path: '/whatsapp' },
+  { text: 'Chat', icon: MessageSquare, path: '/whatsapp' },
   { text: 'Tarefas', icon: ClipboardList, path: '/tasks' },
   { text: 'Treinadores', icon: Dumbbell, path: '/trainers' },
   { text: 'Alunos', icon: GraduationCap, path: '/students' },
