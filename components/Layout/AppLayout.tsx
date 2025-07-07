@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import WeatherWidget from '../ui/WeatherWidget';
 import Image from 'next/image';
+import RightSidebar from './RightSidebar';
 
 // Constants
 const SIDEBAR_EXPANDED_WIDTH = 240;
@@ -68,6 +69,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sidebar-expanded');
       return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  });
+
+  // Initialize right panel visibility state from localStorage
+  const [rightPanelVisible, setRightPanelVisible] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('right-panel-visible');
+      return saved !== null ? JSON.parse(saved) : true; // Default visible
     }
     return true;
   });
@@ -158,6 +168,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
       setMobileOpen(false);
     }
   }, [router, isMobile]);
+
+  // Handler for toggling right panel visibility
+  const handleRightPanelToggle = useCallback((visible: boolean) => {
+    setRightPanelVisible(visible);
+    localStorage.setItem('right-panel-visible', JSON.stringify(visible));
+  }, []);
 
   // Animated Toggle Icon Component
   const AnimatedToggleIcon = ({ isExpanded }: { isExpanded: boolean }) => (
@@ -365,43 +381,65 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </aside>
 
         {/* Desktop Main Area */}
-        <div className="flex flex-col flex-1 min-w-0 no-transform">
-          {/* Desktop Header */}
-          <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleSidebarToggle}
-                className="text-muted-foreground hover:text-foreground rounded-full h-10 w-10 transition-all duration-200 hover:bg-accent/50"
-              >
-                <AnimatedToggleIcon isExpanded={sidebarExpanded} />
-                <span className="sr-only">
-                  {sidebarExpanded ? 'Recolher menu' : 'Expandir menu'}
-                </span>
-              </Button>
-              <h1 className="text-xl font-semibold text-foreground">
-                {currentPageTitle}
-              </h1>
-            </div>
-            
-            <div className="flex items-center gap-2 dropdown-fix">
-              <WeatherWidget />
-              <ThemeToggle />
-              <UserMenu />
-            </div>
-          </header>
+        <div className="flex flex-1 min-w-0 no-transform">
+          <div className="flex flex-col flex-1">
+            {/* Desktop Header */}
+            <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleSidebarToggle}
+                  className="text-muted-foreground hover:text-foreground rounded-full h-10 w-10 transition-all duration-200 hover:bg-accent/50"
+                >
+                  <AnimatedToggleIcon isExpanded={sidebarExpanded} />
+                  <span className="sr-only">
+                    {sidebarExpanded ? 'Recolher menu' : 'Expandir menu'}
+                  </span>
+                </Button>
+                <h1 className="text-xl font-semibold text-foreground">
+                  {currentPageTitle}
+                </h1>
+              </div>
+              
+              <div className="flex items-center gap-2 dropdown-fix">
+                <WeatherWidget />
+                <ThemeToggle />
+                {/* Button to show right panel when hidden */}
+                {!rightPanelVisible && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRightPanelToggle(true)}
+                    className="text-muted-foreground hover:text-foreground rounded-full h-8 w-8 transition-all duration-200 hover:bg-accent/50"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="sr-only">Mostrar painel lateral</span>
+                  </Button>
+                )}
+                <UserMenu />
+              </div>
+            </header>
 
-          {/* Desktop Main Content */}
-          <main className="flex-1 overflow-hidden bg-background">
-            <div className="h-full p-4">
-              <div className="h-full main-content-container rounded-3xl shadow-xl overflow-hidden backdrop-blur-sm no-transform">
-                <div className="h-full p-8 overflow-auto">
-                  {children}
+            {/* Desktop Main Content */}
+            <main className="flex-1 overflow-hidden bg-background">
+              <div className="h-full p-4">
+                <div className="h-full main-content-container rounded-3xl shadow-xl overflow-hidden backdrop-blur-sm no-transform">
+                  <div className="h-full p-8 overflow-auto">
+                    {children}
+                  </div>
                 </div>
               </div>
-            </div>
-          </main>
+            </main>
+          </div>
+          
+          {/* Right Sidebar (Google-like panel) */}
+          {rightPanelVisible && (
+            <RightSidebar 
+              isVisible={rightPanelVisible}
+              onToggle={handleRightPanelToggle}
+            />
+          )}
         </div>
       </div>
     </TooltipProvider>
