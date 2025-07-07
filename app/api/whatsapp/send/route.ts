@@ -1,425 +1,285 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { 
-  sendWhatsAppMessage, 
-  sendTextMessage, 
+import {
+  sendTextMessage,
   sendMediaMessage,
-  checkInstanceStatus,
-  ApiResponse 
+  ApiResponse,
+  // Removed: checkInstanceStatus (handled by instance/route.ts)
+  // Removed: sendWhatsAppMessage (prefer specific sendText/sendMedia)
 } from '@/lib/evolution-http.service';
 import { createClient } from '@/utils/supabase/server';
 import { createServiceClient } from '@/utils/supabase/service';
 
-// Constantes para validação e segurança
+// Constants for validation and security
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const MAX_TEXT_LENGTH = 4096; // Limite do WhatsApp para texto
-const RATE_LIMIT_PER_MINUTE = 30; // Máximo de mensagens por minuto por usuário
+const MAX_TEXT_LENGTH = 4096; // WhatsApp limit for text
+const RATE_LIMIT_PER_MINUTE = 30; // Max messages per minute per user
 
 const ALLOWED_FILE_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm',
-  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4',
-  'application/pdf', 
-  'application/msword', 
+  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', // audio/mp4 for some voice notes
+  'application/pdf',
+  'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.oasis.opendocument.text', // .odt
+  'application/vnd.oasis.opendocument.spreadsheet', // .ods
+  'text/plain', // .txt
+  'application/zip', // .zip
+  'application/x-rar-compressed', // .rar
 ];
 
-// Cache em memória para rate limiting (em produção use Redis)
+// In-memory cache for rate limiting (in production, consider Redis or similar)
 const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
 
-// Função para verificar rate limiting
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
   const userLimit = rateLimitCache.get(userId);
-  
+
   if (!userLimit || now > userLimit.resetTime) {
-    // Reset ou primeira vez
-    rateLimitCache.set(userId, { count: 1, resetTime: now + 60000 }); // 1 minuto
+    rateLimitCache.set(userId, { count: 1, resetTime: now + 60000 }); // 1 minute
     return true;
   }
-  
   if (userLimit.count >= RATE_LIMIT_PER_MINUTE) {
     return false;
   }
-  
   userLimit.count++;
   return true;
 }
 
-// Função para upload seguro de mídia
 async function uploadMediaSecurely(
-  buffer: Buffer, 
-  mimeType: string, 
-  leadId: string, 
+  buffer: Buffer,
+  mimeType: string,
+  leadId: string,
   userId: string,
   originalFileName?: string
 ): Promise<string> {
-  // Validações de segurança
   if (!ALLOWED_FILE_TYPES.includes(mimeType)) {
     throw new Error(`Tipo de arquivo não permitido: ${mimeType}`);
   }
-  
   if (buffer.length > MAX_FILE_SIZE) {
     throw new Error(`Arquivo muito grande. Máximo: ${MAX_FILE_SIZE / 1024 / 1024}MB`);
   }
-
-  // Verificar se o buffer não está corrompido
   if (buffer.length === 0) {
     throw new Error('Arquivo está vazio ou corrompido');
   }
 
-  // Validar magic numbers para tipos de arquivo críticos
-  const magicNumbers: Record<string, number[]> = {
-    'image/jpeg': [0xFF, 0xD8, 0xFF],
-    'image/png': [0x89, 0x50, 0x4E, 0x47],
-    'application/pdf': [0x25, 0x50, 0x44, 0x46],
+  // Basic magic number validation for common types
+  const magicNumbers: Record<string, Buffer> = {
+    'image/jpeg': Buffer.from([0xFF, 0xD8, 0xFF]),
+    'image/png': Buffer.from([0x89, 0x50, 0x4E, 0x47]),
+    'application/pdf': Buffer.from([0x25, 0x50, 0x44, 0x46]),
   };
-
   const magic = magicNumbers[mimeType];
-  if (magic && !magic.every((byte, index) => buffer[index] === byte)) {
-    throw new Error('Arquivo não corresponde ao tipo declarado');
+  if (magic && !buffer.subarray(0, magic.length).equals(magic)) {
+    console.warn(`Magic number mismatch for ${mimeType}. Expected ${magic.toString('hex')}, got ${buffer.subarray(0, magic.length).toString('hex')}`);
+    // Depending on policy, this could be an error: throw new Error('Arquivo não corresponde ao tipo declarado (magic number mismatch)');
   }
 
-  const supabaseServer = await createClient();
-  const fileExtension = mimeType.split('/')[1] || 'bin';
-  const timestamp = new Date().getTime();
-  const randomSuffix = Math.random().toString(36).substring(7);
+  const supabase = createServiceClient(); // Use service client for storage from backend
+  const fileExtension = originalFileName?.split('.').pop() || mimeType.split('/')[1] || 'bin';
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const safeOriginalFileName = originalFileName ? originalFileName.replace(/[^a-zA-Z0-9_.-]/g, '_') : 'file';
   
-  // Estrutura de pastas segura: userId/leadId/timestamp_random.ext
-  const fileName = `${userId}/${leadId}/${timestamp}_${randomSuffix}.${fileExtension}`;
-  
-  const { data, error } = await supabaseServer.storage
-    .from('crm-assets')
-    .upload(fileName, buffer, { 
+  const filePath = `${userId}/${leadId}/${timestamp}_${randomSuffix}_${safeOriginalFileName}`;
+
+  const { data, error } = await supabase.storage
+    .from('crm-assets') // Ensure this bucket exists and has appropriate policies
+    .upload(filePath, buffer, {
       contentType: mimeType,
-      cacheControl: '3600',
-      upsert: false // Não sobrescrever arquivos existentes
+      cacheControl: '3600', // Cache for 1 hour
+      upsert: false, // Do not overwrite
     });
-    
+
   if (error) {
-    throw new Error(`Falha no upload: ${error.message}`);
+    console.error('Supabase storage upload error:', error);
+    throw new Error(`Falha no upload do arquivo: ${error.message}`);
   }
-  
-  const { data: { publicUrl } } = supabaseServer.storage
+
+  const { data: { publicUrl } } = supabase.storage
     .from('crm-assets')
     .getPublicUrl(data.path);
-    
+
+  if (!publicUrl) {
+    throw new Error('Não foi possível obter a URL pública do arquivo após o upload.');
+  }
   return publicUrl;
 }
 
-// Função para sanitizar texto
 function sanitizeText(text: string): string {
   if (!text) return '';
-  
-  // Remover caracteres de controle perigosos
-  const sanitized = text
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Caracteres de controle
-    .substring(0, MAX_TEXT_LENGTH) // Limitar tamanho
+  return text
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove most control characters
+    .substring(0, MAX_TEXT_LENGTH)
     .trim();
-    
-  return sanitized;
 }
 
-// Função para validar número de telefone
 function validatePhoneNumber(phoneNumber: string): boolean {
-  // Remover caracteres não numéricos
   const cleaned = phoneNumber.replace(/\D/g, '');
-  
-  // Verificar se tem entre 10 e 15 dígitos (padrão internacional)
-  if (cleaned.length < 10 || cleaned.length > 15) {
-    return false;
-  }
-  
-  // Verificar se não começa com 0 (números internacionais não devem começar com 0)
-  if (cleaned.startsWith('0')) {
-    return false;
-  }
-  
-  return true;
+  // Basic check for length, can be improved with more specific country code logic if needed
+  return cleaned.length >= 10 && cleaned.length <= 15 && !cleaned.startsWith('0');
 }
 
 export async function POST(request: NextRequest) {
-  const supabaseServer = await createClient();
-  
+  const supabaseServer = await createClient(); // For auth
+  const serviceSupabase = createServiceClient(); // For DB operations
+
   try {
-    // Verificar autenticação
     const { data: { user }, error: authError } = await supabaseServer.auth.getUser();
-    
     if (authError || !user) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    // Verificar rate limiting
     if (!checkRateLimit(user.id)) {
-      return NextResponse.json({ 
-        error: 'Muitas mensagens enviadas. Tente novamente em alguns minutos.' 
-      }, { status: 429 });
+      return NextResponse.json({ error: 'Muitas mensagens enviadas. Tente novamente em alguns minutos.' }, { status: 429 });
     }
 
-    // Parse do form data
     const formData = await request.formData();
     const to = formData.get('to') as string;
     const lead_id = formData.get('lead_id') as string;
-    const text = formData.get('text') as string | null;
+    const textContent = formData.get('text') as string | null;
     const file = formData.get('file') as File | null;
 
-    // Validações obrigatórias
     if (!to || !lead_id) {
-      return NextResponse.json({ 
-        error: 'Parâmetros "to" e "lead_id" são obrigatórios' 
-      }, { status: 400 });
+      return NextResponse.json({ error: 'Parâmetros "to" e "lead_id" são obrigatórios' }, { status: 400 });
     }
-
-    // Validar número de telefone
     if (!validatePhoneNumber(to)) {
-      return NextResponse.json({ 
-        error: 'Número de telefone inválido' 
-      }, { status: 400 });
+      return NextResponse.json({ error: 'Número de telefone inválido' }, { status: 400 });
     }
 
-    // Verificar se o usuário tem acesso ao lead
-    const { data: lead, error: leadError } = await supabaseServer
+    const { data: lead, error: leadError } = await serviceSupabase
       .from('leads')
       .select('id, user_id, phone')
       .eq('id', lead_id)
-      .eq('user_id', user.id)
+      .eq('user_id', user.id) // Ensure user owns the lead
       .single();
 
     if (leadError || !lead) {
-      return NextResponse.json({ 
-        error: 'Lead não encontrado ou sem permissão' 
-      }, { status: 403 });
+      return NextResponse.json({ error: 'Lead não encontrado ou sem permissão' }, { status: 403 });
     }
 
-    // Verificar se o número corresponde ao lead (segurança adicional)
+    // Optional: Stronger phone number validation against lead's phone
     if (lead.phone) {
       const leadPhoneClean = lead.phone.replace(/\D/g, '');
       const requestPhoneClean = to.replace(/\D/g, '');
-      
-      if (!leadPhoneClean.includes(requestPhoneClean) && !requestPhoneClean.includes(leadPhoneClean)) {
-        return NextResponse.json({ 
-          error: 'Número não corresponde ao lead especificado' 
-        }, { status: 400 });
+      if (!leadPhoneClean.endsWith(requestPhoneClean) && !requestPhoneClean.endsWith(leadPhoneClean)) {
+        // This check might be too strict depending on how numbers are stored/formatted
+        console.warn(`Phone number mismatch: lead ${leadPhoneClean}, request ${requestPhoneClean}`);
+        // return NextResponse.json({ error: 'Número não corresponde ao lead especificado' }, { status: 400 });
       }
     }
 
-    // Preparar dados para envio
-    const sanitizedText = text ? sanitizeText(text) : null;
+    const sanitizedText = textContent ? sanitizeText(textContent) : null;
 
-    // Validar se há conteúdo para enviar
-    if (!file && !sanitizedText?.trim()) {
-      return NextResponse.json({ 
-        error: 'Mensagem de texto ou arquivo é obrigatório' 
-      }, { status: 400 });
+    if (!file && (!sanitizedText || sanitizedText.trim() === '')) {
+      return NextResponse.json({ error: 'Mensagem de texto ou arquivo é obrigatório' }, { status: 400 });
     }
 
-    // Processar arquivo se fornecido
     let mediaUrl: string | null = null;
     let mimeType: string | null = null;
-    
+    let originalFileName: string | undefined;
+
     if (file) {
       try {
         const buffer = Buffer.from(await file.arrayBuffer());
         mimeType = file.type;
-        
-        // Verificar se o tipo MIME é confiável
-        if (!mimeType || !ALLOWED_FILE_TYPES.includes(mimeType)) {
-          return NextResponse.json({ 
-            error: `Tipo de arquivo não suportado: ${mimeType || 'desconhecido'}` 
-          }, { status: 400 });
-        }
-        
-        mediaUrl = await uploadMediaSecurely(buffer, mimeType, lead_id, user.id, file.name);
-        
+        originalFileName = file.name;
+        mediaUrl = await uploadMediaSecurely(buffer, mimeType, lead_id, user.id, originalFileName);
       } catch (uploadError: any) {
-        console.error('Erro no upload:', uploadError);
-        return NextResponse.json({ 
-          error: uploadError.message 
-        }, { status: 400 });
+        console.error('Erro no upload seguro:', uploadError);
+        return NextResponse.json({ error: uploadError.message || 'Falha no upload do arquivo' }, { status: 400 });
       }
     }
 
-    // Tentar enviar via WhatsApp com retry
-    let sentResponse: ApiResponse<any> | undefined;
-    let lastError;
-    
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        if (file) {
-          // Mensagem com mídia
-          const fileType = mimeType!.split('/')[0];
-          let mediaType: 'image' | 'video' | 'audio' | 'document';
-          
-          switch (fileType) {
-            case 'image':
-              mediaType = 'image';
-              break;
-            case 'video':
-              mediaType = 'video';
-              break;
-            case 'audio':
-              mediaType = 'audio';
-              break;
-            default:
-              mediaType = 'document';
-              break;
-          }
+    let evolutionResponse: ApiResponse<any>;
 
-          sentResponse = await sendMediaMessage({
-            number: to,
-            mediatype: mediaType,
-            media: mediaUrl!,
-            caption: sanitizedText || undefined,
-            filename: file.name || undefined
-          });
-        } else {
-          // Mensagem de texto simples
-          sentResponse = await sendTextMessage({
-            number: to,
-            text: sanitizedText!
-          });
-        }
-        
-        if (sentResponse.success) break;
-        lastError = new Error(sentResponse.error || 'Failed to send message');
-      } catch (error: any) {
-        lastError = error;
-        console.error(`Tentativa ${attempt} falhou:`, error.message);
-        
-        if (attempt < 3) {
-          // Aguardar antes de tentar novamente
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-        }
+    if (mediaUrl && mimeType) {
+      const fileType = mimeType.split('/')[0];
+      let mediaType: 'image' | 'video' | 'audio' | 'document';
+      switch (fileType) {
+        case 'image': mediaType = 'image'; break;
+        case 'video': mediaType = 'video'; break;
+        case 'audio': mediaType = 'audio'; break;
+        default: mediaType = 'document'; break;
       }
-    }
-
-    if (!sentResponse || !sentResponse.success) {
-      // Log do erro completo para debugging
-      console.error('❌ Falha completa no envio:', {
-        attempts: 3,
-        lastError: lastError?.message,
-        response: sentResponse
+      evolutionResponse = await sendMediaMessage({
+        number: to,
+        mediatype: mediaType,
+        media: mediaUrl,
+        caption: sanitizedText || undefined,
+        filename: originalFileName || `file.${mimeType.split('/')[1] || 'bin'}`
       });
-      
-      throw new Error(lastError?.message || "Falha ao enviar mensagem pelo WhatsApp após 3 tentativas");
+    } else if (sanitizedText) {
+      evolutionResponse = await sendTextMessage({
+        number: to,
+        text: sanitizedText,
+      });
+    } else {
+      // Should be caught by earlier validation, but as a safeguard
+      return NextResponse.json({ error: 'Nenhum conteúdo para enviar' }, { status: 400 });
     }
 
-    const sentMsg = sentResponse.data;
-    console.log('✅ Mensagem enviada com sucesso:', {
-      messageId: sentMsg?.key?.id || sentMsg?.messageId || 'unknown',
-      status: sentMsg?.status || 'sent'
-    });
-
-    // Usar service client para garantir que a mensagem seja salva
-    const serviceSupabase = createServiceClient();
-    let dbSaveSuccess = false;
-    
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        // Salvar mensagem enviada no banco com informações mais completas
-        const messageData = {
-          lead_id, 
-          user_id: user.id, 
-          sender_jid: `${to}@s.whatsapp.net`, // Formato correto do JID
-          message_content: sanitizedText || (file ? `[${file.type.split('/')[0]}]` : null),
-          message_timestamp: new Date(), 
-          message_id: sentMsg?.key?.id || sentMsg?.messageId || `sent_${Date.now()}_${Math.random().toString(36).substring(7)}`, 
-          is_from_lead: false, // Mensagem enviada pelo usuário
-          message_type: file ? mimeType!.split('/')[0] : 'text', 
-          media_url: mediaUrl, 
-          mime_type: mimeType,
-        };
-
-        console.log('💾 Salvando mensagem enviada:', messageData);
-
-        const { error: dbError } = await serviceSupabase
-          .from('whatsapp_messages')
-          .insert(messageData);
-
-        if (dbError) {
-          console.error('❌ Erro ao salvar mensagem:', dbError);
-          throw dbError;
-        }
-        
-        console.log('✅ Mensagem salva no banco com sucesso');
-        dbSaveSuccess = true;
-        break;
-      } catch (dbError: any) {
-        console.error(`Tentativa ${attempt} de salvar no banco falhou:`, dbError);
-        
-        if (attempt < 2) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
+    if (!evolutionResponse.success) {
+      console.error('Falha ao enviar mensagem via Evolution API:', evolutionResponse.error);
+      // Consider mapping Evolution API errors to user-friendly messages if needed
+      return NextResponse.json({
+        success: false,
+        error: `Falha ao enviar mensagem pelo WhatsApp: ${evolutionResponse.error || 'Erro desconhecido'}`,
+        details: evolutionResponse.data // Potentially include details if safe
+      }, { status: 502 }); // Bad Gateway or appropriate error for upstream failure
     }
 
-    if (!dbSaveSuccess) {
-      console.warn('⚠️ Mensagem enviada mas não foi salva no banco de dados');
-    }
+    const sentMsgData = evolutionResponse.data;
+    const messageId = sentMsgData?.key?.id || sentMsgData?.messageId || `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    return NextResponse.json({ 
-      success: true, 
-      messageId: sentMsg?.key?.id || sentMsg?.messageId || 'unknown',
-      savedToDatabase: dbSaveSuccess,
-      status: sentMsg?.status || 'sent',
-      data: sentMsg
-    });
-    
-  } catch (error: any) {
-    console.error('Erro na API WhatsApp send:', error);
-    
-    // Log detalhado para debugging (remover em produção)
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Stack trace:', error.stack);
-    }
-    
-    // Retornar erro genérico para não vazar informações sensíveis
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message || 'Erro interno do servidor' 
-    }, { status: 500 });
-  }
-}
+    console.log('Mensagem enviada com sucesso pela Evolution API:', { messageId, status: sentMsgData?.status });
 
-// Endpoint para verificar status da conexão (GET)
-export async function GET(request: NextRequest) {
-  try {
-    const supabaseServer = await createClient();
-    const { data: { user }, error: authError } = await supabaseServer.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
+    // Save message to our database
+    const messageToSave = {
+      lead_id,
+      user_id: user.id,
+      sender_jid: `${to}@s.whatsapp.net`, // Standard JID format for sender (our side)
+      // recipient_jid: `${to}@s.whatsapp.net`, // If tracking recipient JID explicitly
+      message_content: sanitizedText || (file ? `[${mimeType?.split('/')[0] || 'arquivo'}] ${originalFileName || ''}`.trim() : null),
+      message_timestamp: new Date(sentMsgData?.messageTimestamp ? sentMsgData.messageTimestamp * 1000 : Date.now()),
+      message_id: messageId,
+      is_from_lead: false, // This message is from the CRM user
+      message_type: file ? (mimeType?.split('/')[0] || 'file') : 'text',
+      media_url: mediaUrl,
+      mime_type: mimeType,
+      message_status: sentMsgData?.status || 'sent', // Status from Evolution API if available
+      // raw_message_data: sentMsgData, // Optional: store the raw response for debugging
+    };
 
-    // Verificar status da instância diretamente com a Evolution API
-    const instanceStatus = await checkInstanceStatus();
-    
-    // Também buscar status local da conexão
-    const { data: connection, error: connectionError } = await supabaseServer
-      .from('whatsapp_connections')
-      .select('status, last_connected_at, whatsapp_user')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const { error: dbError } = await serviceSupabase
+      .from('whatsapp_messages')
+      .insert(messageToSave);
+
+    if (dbError) {
+      console.error('Erro ao salvar mensagem enviada no banco de dados:', dbError);
+      // Non-critical error for the user, but should be logged.
+      // The message was sent, but not recorded. This might need a retry or dead-letter queue.
+    } else {
+      console.log('Mensagem enviada salva no banco de dados.');
+    }
 
     return NextResponse.json({
-      connected: instanceStatus.connected,
-      status: instanceStatus.status,
-      exists: instanceStatus.exists,
-      profile: instanceStatus.profile,
-      localConnection: {
-        status: connection?.status || 'unknown',
-        lastConnectedAt: connection?.last_connected_at,
-        whatsappUser: connection?.whatsapp_user
-      }
+      success: true,
+      messageId: messageId,
+      status: sentMsgData?.status || 'sent',
+      savedToDatabase: !dbError,
+      data: sentMsgData // Return the response from Evolution API
     });
 
   } catch (error: any) {
-    console.error('Erro ao verificar status WhatsApp:', error);
-    return NextResponse.json({ 
-      connected: false, 
-      status: 'error',
-      error: 'Erro interno do servidor' 
+    console.error('Erro geral na API /whatsapp/send:', error);
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Erro interno do servidor ao enviar mensagem.'
     }, { status: 500 });
   }
 }
+
+// Removed GET handler, as status checking is consolidated in instance/route.ts

@@ -120,6 +120,16 @@ NextCRM/
 - **Status de conexão** em tempo real
 - **Webhook inteligente** para recebimento de mensagens
 
+**Arquitetura Refatorada (Julho 2024):**
+A integração com o WhatsApp foi significativamente refatorada para simplificar e robustecer a comunicação. As principais mudanças incluem:
+- **Endpoint de API Consolidado**: Todas as interações de gerenciamento da instância do WhatsApp (verificar status, obter QR code, conectar, reconectar, desconectar) foram centralizadas no endpoint `GET / POST /api/whatsapp/instance`. Isso substitui múltiplos endpoints anteriores (`/status`, `/connection`, `/reconnect`, etc.).
+- **Serviço HTTP Otimizado**: O `lib/evolution-http.service.ts`, utilizando `fetch` nativo e retry robusto, é a única interface de comunicação com a API externa da Evolution. O antigo `lib/evolution.service.ts` (baseado em Axios) foi removido.
+- **Processador de Webhook Eficiente**: O `app/api/whatsapp/webhook/route.ts` (e sua rota catch-all `app/api/whatsapp/webhook/[...event]/route.ts` para lidar com `webhook_by_events: true`) atuam como pontos de entrada únicos, validando e passando imediatamente os dados para o `lib/webhook.processor.ts`. Este processador foi otimizado para maior clareza e idempotência no tratamento de eventos.
+- **Hook de Conexão Frontend Simplificado**: O hook `hooks/useWhatsAppConnection.ts` foi refatorado para usar `@tanstack/react-query` (`useQuery` para polling de status e `useMutation` para ações), comunicando-se exclusivamente com o novo endpoint `/api/whatsapp/instance`.
+- **Schema de Banco de Dados Consolidado**: A tabela `whatsapp_connections` foi alterada para um modelo de instância única, utilizando `instance_name` como chave primária em vez de `user_id`, refletindo a arquitetura de uma instância global ("Leonardo") gerenciada pelo sistema. A tabela `whatsapp_messages` agora inclui uma coluna `instance_name`. Essas alterações foram aplicadas através de uma nova migração consolidada.
+
+Essa refatoração resulta em um fluxo de dados mais limpo, menos redundância, melhor tratamento de erros e maior facilidade de manutenção da integração com o WhatsApp.
+
 #### **Comunicação Integrada**
 - **Chat nativo** dentro do CRM
 - **Envio de mensagens** direto dos leads
