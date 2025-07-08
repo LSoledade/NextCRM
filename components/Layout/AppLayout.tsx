@@ -53,6 +53,7 @@ const menuItems = [
   { text: 'Treinadores', icon: Dumbbell, path: '/trainers' },
   { text: 'Alunos', icon: GraduationCap, path: '/students' },
   { text: 'Sessões', icon: Calendar, path: '/sessions' },
+  { text: 'Agenda', icon: Calendar, path: '/schedule' }, // Adiciona o link para o calendário
 ] as const;
 
 interface AppLayoutProps {
