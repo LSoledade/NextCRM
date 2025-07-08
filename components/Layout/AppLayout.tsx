@@ -209,7 +209,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             variant={isActive ? "default" : "ghost"}
             size={collapsed ? "icon" : "default"}
             className={cn(
-              "w-full transition-all duration-300 ease-out rounded-xl",
+              "w-full transition-all duration-300 ease-out rounded-xl overflow-hidden",
               collapsed ? "h-12 justify-center" : "h-12 justify-start",
               isActive && [
                 "bg-background text-foreground border-0",
@@ -227,12 +227,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
             onClick={() => handleNavigation(item.path)}
           >
             <IconComponent className={cn(
-              "h-5 w-5 transition-all duration-200",
+              "h-5 w-5 transition-all duration-300 ease-out shrink-0",
               !collapsed && "mr-3"
             )} />
-            {!collapsed && (
-              <span className="font-medium truncate">{item.text}</span>
-            )}
+            <span className={cn(
+              "font-medium truncate transition-all duration-300 ease-out min-w-0",
+              collapsed 
+                ? "opacity-0 w-0 scale-95 translate-x-[-8px] delay-0" 
+                : "opacity-100 w-auto scale-100 translate-x-0 delay-75"
+            )}>
+              {item.text}
+            </span>
           </Button>
         );
 
@@ -255,12 +260,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="flex h-full flex-col bg-background sidebar-container">
       {/* Logo/Brand */}
       <div className={cn(
-        "flex items-center transition-all duration-200 ease-out",
+        "flex items-center transition-all duration-300 ease-out overflow-hidden",
         collapsed ? "justify-center p-3 min-h-[65px]" : "justify-start p-4 min-h-[65px]"
       )}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <div className={cn(
-            "rounded-xl bg-primary/10 p-2 transition-all duration-200 flex items-center justify-center",
+            "rounded-xl bg-primary/10 p-2 transition-all duration-300 ease-out flex items-center justify-center shrink-0",
             collapsed && "bg-primary/15"
           )}>
             <Image 
@@ -268,19 +273,26 @@ export default function AppLayout({ children }: AppLayoutProps) {
               alt="Favale Logo" 
               width={collapsed ? 32 : 36}
               height={collapsed ? 32 : 36}
-              className="transition-all duration-200"
+              className="transition-all duration-300 ease-out"
             />
           </div>
-          {!collapsed && (
-            <div className="flex flex-col">
-              <h1 className="text-lg font-bold text-foreground leading-tight">
-                Favale Manager
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                Favale Físico Saúde
-              </p>
-            </div>
-          )}
+          <div className={cn(
+            "flex flex-col min-w-0 transition-all duration-300 ease-out",
+            collapsed ? "opacity-0 w-0 scale-95 translate-x-[-10px]" : "opacity-100 w-auto scale-100 translate-x-0"
+          )}>
+            <h1 className={cn(
+              "text-lg font-bold text-foreground leading-tight whitespace-nowrap transition-all duration-300 ease-out",
+              collapsed ? "delay-0" : "delay-75"
+            )}>
+              Favale Manager
+            </h1>
+            <p className={cn(
+              "text-xs text-muted-foreground whitespace-nowrap transition-all duration-300 ease-out",
+              collapsed ? "delay-0" : "delay-100"
+            )}>
+              Favale Físico Saúde
+            </p>
+          </div>
         </div>
       </div>
 
