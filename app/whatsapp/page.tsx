@@ -3,30 +3,31 @@
 import React from 'react';
 import AppLayout from '@/components/Layout/AppLayout';
 
-// URL da sua instância do Chatwoot
-const CHATWOOT_URL = "https://evolution-chatwoot.okkagk.easypanel.host";
+// URL direta para a caixa de entrada específica
+const CHATWOOT_URL = 'https://evolution-chatwoot.okkagk.easypanel.host/app/accounts/1/inboxes/1';
 
 export default function WhatsappPage() {
   return (
     <AppLayout>
+      {/* Container Flexbox para gerenciar o layout */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
         width: '100%',
-        overflow: 'hidden' // Garante que o iframe preencha o container
+        overflow: 'hidden'
       }}>
         <iframe
           src={CHATWOOT_URL}
-          title="Chatwoot"
+          title="Chatwoot – WhatsApp"
           style={{
             width: '100%',
-            height: '100%',
-            border: 'none', // Remove a borda do iframe
-            borderRadius: '0.75rem' // Opcional: para manter as bordas arredondadas do card
+            height: '100%', // Ocupa 100% do container
+            border: 'none',
+            borderRadius: '0.75rem',
           }}
-          // Permissões importantes para o Chatwoot funcionar corretamente
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+          // Permissões para o Chatwoot funcionar corretamente
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         />
       </div>
     </AppLayout>
