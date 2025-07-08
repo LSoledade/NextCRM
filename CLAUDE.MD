@@ -7,15 +7,17 @@ O **FavaleTrainer CRM** é um sistema completo de gerenciamento de relacionament
 ## 🏗️ Arquitetura e Stack Tecnológica
 
 ### **Frontend**
-- **Next.js 15.3.4** - Framework React com App Router
-- **TypeScript** - Tipagem estática
-- **Tailwind CSS** - Framework CSS utilitário
-- **shadcn/ui** - Biblioteca de componentes UI moderna
-- **Radix UI** - Componentes primitivos acessíveis
-- **Framer Motion** - Animações e transições
-- **Lucide React** - Ícones SVG
-- **React Hook Form** - Gerenciamento de formulários
-- **Zod** - Validação de schemas
+- **Next.js 15.3.4** - Framework React com App Router e Turbopack
+- **TypeScript 5.2.2** - Tipagem estática robusta
+- **Tailwind CSS 3.3.3** - Framework CSS utilitário com animações
+- **shadcn/ui** - Biblioteca de componentes UI moderna e acessível
+- **Radix UI** - Componentes primitivos de alta qualidade
+- **Framer Motion 12.20.1** - Animações fluidas e transições avançadas
+- **Lucide React 0.446.0** - Ícones SVG otimizados e consistentes
+- **React Hook Form 7.60.0** - Gerenciamento performático de formulários
+- **Zod 3.25.75** - Validação de schemas TypeScript-first
+- **React Big Calendar 1.19.4** - Calendário avançado para agendamentos
+- **Recharts 2.12.7** - Gráficos e visualizações de dados
 
 ### **Backend & Database**
 - **Supabase** - Backend-as-a-Service (PostgreSQL + Auth + Realtime)
@@ -23,15 +25,23 @@ O **FavaleTrainer CRM** é um sistema completo de gerenciamento de relacionament
 - **Row Level Security (RLS)** - Segurança a nível de linha
 - **Realtime Subscriptions** - Atualizações em tempo real
 
+## 🔗 Integrações e APIs
+
 ### **Integrações Externas**
 - **Evolution API** - Integração WhatsApp Business (HTTP nativo otimizado)
-- **Vercel KV** - Cache Redis distribuído
-- **Papa Parse** - Processamento CSV em lote
+- **Chatwoot** - Interface de chat integrada para WhatsApp
+- **Vercel KV** - Cache Redis distribuído para performance
+- **Papa Parse** - Processamento CSV em lote otimizado
+- **Date-FNS** - Manipulação de datas avançada
+- **Date-Holidays** - Sistema de feriados automático
+- **RRule** - Regras de recorrência para agendamentos
 
 ### **Gerenciamento de Estado**
-- **React Query (TanStack Query)** - Cache e sincronização de dados
+- **React Query (TanStack Query) 5.17.0** - Cache inteligente e sincronização de dados
 - **React Context** - Estado global de autenticação
-- **React Hooks** - Estados locais e efeitos
+- **React Hooks** - Estados locais e efeitos otimizados
+- **Zustand** - Estado leve para componentes específicos
+- **Custom Hooks** - Lógica reutilizável e performática
 
 ## 🔧 Estrutura do Projeto
 
@@ -166,19 +176,68 @@ Essa refatoração resulta em um fluxo de dados mais limpo, menos redundância, 
 - **Produtividade pessoal** e da equipe
 - **Insights automáticos** baseados em dados
 
-### **5. Gestão de Alunos**
+### **6. Sistema de Agendamento Avançado**
+
+#### **Calendário Inteligente**
+- **React Big Calendar** integrado com interface moderna
+- **Visualizações múltiplas**: mês, semana, dia, agenda
+- **Localização pt-BR** completa com feriados brasileiros
+- **Responsividade total** em dispositivos móveis
+- **Sincronização em tempo real** entre usuários
+
+#### **Agendamentos Recorrentes**
+- **RRule integration** para padrões complexos de recorrência
+- **Agendamentos semanais** personalizados por aluno
+- **Gerenciamento de ausências** e reagendamentos
+- **Conflitos automáticos** detectados e resolvidos
+- **Notificações inteligentes** de lembrete
+
+#### **Disponibilidade de Professores**
+- **Horários personalizados** por dia da semana
+- **Bloqueios de agenda** para férias e ausências
+- **Capacidade por horário** configurável
+- **Feriados nacionais** automaticamente considerados
+- **Exceções pontuais** facilmente gerenciadas
+
+#### **Serviços e Preços**
+- **Catálogo de serviços** com duração e preços
+- **Pacotes personalizados** para diferentes modalidades
+- **Histórico de sessões** completo por aluno
+- **Relatórios de frequência** e performance
+- **Controle de inadimplência** automático
+
+### **7. Gestão de Alunos Aprimorada**
 
 #### **Conversão Automática**
 - **Leads → Alunos** com um clique
 - **Relacionamento bidirecional** preservado
 - **Histórico mantido** durante conversão
 - **Status diferenciado** na interface
+- **Badge visual** para identificação rápida
 
-#### **Acompanhamento**
+#### **Acompanhamento Detalhado**
 - **Lista dedicada** de alunos ativos
 - **Progresso individual** e metas
 - **Sessões de treino** agendadas/realizadas
 - **Comunicação direta** via WhatsApp
+- **Histórico completo** de interações
+- **Métricas de performance** personalizadas
+
+### **8. Analytics e Relatórios Avançados**
+
+#### **Dashboard Interativo**
+- **Activity Heatmap** com padrões de uso
+- **Gráficos de tendência** de conversão
+- **Métricas em tempo real** de performance
+- **Comparativos período anterior** automáticos
+- **Projeções inteligentes** baseadas em dados históricos
+
+#### **Insights Automáticos**
+- **Detecção de padrões** em comportamento de leads
+- **Sugestões de otimização** personalizadas
+- **Alertas de performance** proativos
+- **Recomendações de ação** baseadas em IA
+- **Benchmarking automático** com mercado
 
 ## 🗄️ Estrutura do Banco de Dados
 
@@ -221,30 +280,32 @@ Essa refatoração resulta em um fluxo de dados mais limpo, menos redundância, 
 - created_at, updated_at (TIMESTAMP)
 ```
 
-#### **whatsapp_connections**
+#### **whatsapp_connections (Refatorada)**
 ```sql
-- id (UUID, PK)
-- user_id (UUID, FK → auth.users)
-- instance_name (TEXT)
-- status (TEXT) -- connecting, connected, disconnected, error
+- instance_name (TEXT, PK) -- Chave primária única por instância
+- status (TEXT) -- connecting, qr_ready, connected, disconnected, error
 - qr_code (TEXT)
 - whatsapp_user (JSONB)
-- last_connected_at (TIMESTAMP)
-- created_at, updated_at (TIMESTAMP)
+- phone_number (TEXT)
+- connected_at (TIMESTAMPTZ)
+- disconnected_at (TIMESTAMPTZ)
+- error_message (TEXT)
+- created_at, updated_at (TIMESTAMPTZ)
 ```
 
-#### **whatsapp_messages**
+#### **whatsapp_messages (Atualizada)**
 ```sql
 - id (UUID, PK)
 - lead_id (UUID, FK → leads.id)
 - user_id (UUID, FK → auth.users)
+- instance_name (TEXT) -- Referência à instância WhatsApp
 - message_content (TEXT)
 - media_url (TEXT)
 - media_type (TEXT)
 - is_from_lead (BOOLEAN)
-- message_timestamp (TIMESTAMP)
+- message_timestamp (TIMESTAMPTZ)
 - evolution_message_id (TEXT)
-- created_at (TIMESTAMP)
+- created_at (TIMESTAMPTZ)
 ```
 
 #### **training_sessions**
@@ -257,6 +318,66 @@ Essa refatoração resulta em um fluxo de dados mais limpo, menos redundância, 
 - status (TEXT) -- Scheduled, Completed, Cancelled, No-show
 - notes (TEXT)
 - created_at, updated_at (TIMESTAMP)
+```
+
+#### **recurring_sessions**
+```sql
+- id (UUID, PK)
+- student_id (UUID, FK → students.id)
+- teacher_id (UUID, FK → trainers.id)
+- service_id (UUID, FK → services.id)
+- start_date (TIMESTAMPTZ)
+- end_date (TIMESTAMPTZ)
+- rrule (TEXT) -- String RRule para recorrência
+- user_id (UUID, FK → auth.users)
+- created_at, updated_at (TIMESTAMPTZ)
+```
+
+#### **teacher_availability**
+```sql
+- id (UUID, PK)
+- teacher_id (UUID, FK → trainers.id)
+- day_of_week (INTEGER) -- 0-6 (Domingo-Sábado)
+- start_time (TIME)
+- end_time (TIME)
+- is_available (BOOLEAN)
+- user_id (UUID, FK → auth.users)
+- created_at (TIMESTAMPTZ)
+```
+
+#### **teacher_absences**
+```sql
+- id (UUID, PK)
+- teacher_id (UUID, FK → trainers.id)
+- start_date (TIMESTAMPTZ)
+- end_date (TIMESTAMPTZ)
+- reason (TEXT)
+- is_recurring (BOOLEAN)
+- user_id (UUID, FK → auth.users)
+- created_at (TIMESTAMPTZ)
+```
+
+#### **services**
+```sql
+- id (UUID, PK)
+- name (TEXT, NOT NULL)
+- description (TEXT)
+- duration_minutes (INTEGER) -- Duração padrão em minutos
+- price (DECIMAL(10,2))
+- is_active (BOOLEAN)
+- user_id (UUID, FK → auth.users)
+- created_at (TIMESTAMPTZ)
+```
+
+#### **holidays**
+```sql
+- id (UUID, PK)
+- name (TEXT, NOT NULL)
+- date (DATE)
+- is_national (BOOLEAN) -- Feriado nacional ou personalizado
+- description (TEXT)
+- user_id (UUID, FK → auth.users)
+- created_at (TIMESTAMPTZ)
 ```
 
 ### **Recursos de Segurança**
@@ -273,7 +394,52 @@ Essa refatoração resulta em um fluxo de dados mais limpo, menos redundância, 
 - **Logout automático** por inatividade
 - **Recuperação de senha** por email
 
-## 🔗 Integrações e APIs
+## �️ Arquitetura e Performance
+
+### **Otimizações de Performance**
+
+#### **Frontend Optimizations**
+- **Turbopack** - Build system ultrarrápido do Next.js
+- **React Query (TanStack)** - Cache inteligente e sincronização
+- **Code Splitting** automático por rotas e componentes
+- **Image Optimization** nativa do Next.js
+- **Lazy Loading** para componentes pesados
+- **Memoization** estratégica com React.memo e useMemo
+
+#### **Database Optimizations**
+- **Índices otimizados** para queries frequentes
+- **Prepared Statements** para segurança e performance
+- **Connection Pooling** via Supabase
+- **Row Level Security** sem impacto na performance
+- **Realtime subscriptions** com filtros eficientes
+
+#### **Caching Strategy**
+- **Vercel KV** para cache de sessões e dados frequentes
+- **React Query** cache em memória com TTL inteligente
+- **Browser caching** otimizado para assets estáticos
+- **Edge caching** via Vercel Edge Network
+- **Database query caching** automático
+
+### **Hooks Customizados Avançados**
+
+#### **Data Management Hooks**
+- `useOptimizedDashboardStats` - Estatísticas com cache inteligente
+- `useRealtimeTasks` - Sincronização de tarefas em tempo real
+- `useLeadMutations` - CRUD otimizado para leads
+- `useAppointmentMutations` - Gerenciamento de agendamentos
+- `useCalendarEvents` - Eventos do calendário com cache
+- `useAdvancedAnalytics` - Analytics avançados com métricas
+
+#### **WhatsApp Integration Hooks**
+- `useWhatsAppConnection` - Gerenciamento de conexão
+- `useWhatsAppMessages` - Mensagens com realtime
+- `useMessageMutations` - Envio e recebimento otimizado
+
+#### **Performance Hooks**
+- `useDebounce` - Debounce para inputs de busca
+- `useInfiniteScroll` - Paginação infinita otimizada
+- `useVirtualization` - Listas grandes virtualizadas
+- `useOptimisticUpdates` - Atualizações otimistas
 
 ### **Evolution API (WhatsApp) - Integração Otimizada**
 
@@ -552,10 +718,10 @@ npm run dev
 ### **Scripts Disponíveis**
 ```json
 {
-  "dev": "next dev",          // Servidor de desenvolvimento (porta 3000)
-  "build": "next build",      // Build otimizado para produção
-  "start": "next start",      // Servidor de produção
-  "lint": "next lint"         // Verificação de qualidade do código
+  "dev": "next dev --turbopack",      // Servidor de desenvolvimento com Turbopack
+  "build": "next build --turbopack",  // Build otimizado para produção com Turbopack
+  "start": "next start",              // Servidor de produção
+  "lint": "next lint"                 // Verificação de qualidade do código
 }
 ```
 
@@ -687,24 +853,33 @@ console.log('[WEBHOOK]', 'Message received:', {
 
 ### **Curto Prazo (1-3 meses)**
 - [ ] **Notificações push** para tarefas e mensagens
-- [ ] **Calendário integrado** para agendamentos
-- [ ] **Templates** de mensagens WhatsApp
-- [ ] **Relatórios PDF** automáticos
-- [ ] **Backup/restore** de dados
+- [ ] **Templates** de mensagens WhatsApp personalizáveis
+- [ ] **Backup/restore** automático de dados
+- [ ] **Sistema de lembretes** inteligente
+- [ ] **Integração** com Google Calendar/Outlook
+- [ ] **Relatórios financeiros** básicos
+- [ ] **Dashboard mobile** responsivo
+- [ ] **Bulk actions** para operações em massa
 
 ### **Médio Prazo (3-6 meses)**
 - [ ] **App móvel** (React Native/PWA)
 - [ ] **Integração calendário** (Google Calendar)
-- [ ] **Automações** de marketing
-- [ ] **AI para análise** de sentimento
+- [ ] **Automações** de marketing avançadas
+- [ ] **AI para análise** de sentimento em mensagens
 - [ ] **Multi-tenant** para múltiplas empresas
+- [ ] **API pública** para integrações externas
+- [ ] **Webhooks personalizados** para automações
+- [ ] **Relatórios PDF** com templates customizáveis
 
 ### **Longo Prazo (6+ meses)**
-- [ ] **Pagamentos integrados** (Stripe/PagSeguro)
-- [ ] **CRM avançado** com funil de vendas
+- [ ] **Pagamentos integrados** (Stripe/PagSeguro/Pix)
+- [ ] **CRM avançado** com funil de vendas complexo
 - [ ] **Marketplace** de personal trainers
-- [ ] **Analytics preditivos** com ML
-- [ ] **Integrações** com equipamentos fitness
+- [ ] **Analytics preditivos** com Machine Learning
+- [ ] **Integrações** com equipamentos fitness (IoT)
+- [ ] **Sistema de gamificação** para alunos
+- [ ] **Plataforma de cursos** online integrada
+- [ ] **Chatbot inteligente** com IA para atendimento
 
 ## 🛠️ Configurações e Personalizações
 
@@ -991,23 +1166,30 @@ O **FavaleTrainer CRM** representa uma solução moderna e completa para persona
 
 ### **Principais Diferenciais**
 
-- **Arquitetura Moderna**: Next.js 15 + TypeScript + Supabase
-- **Integração WhatsApp**: Nativa com Evolution API
+- **Arquitetura Moderna**: Next.js 15 + TypeScript + Supabase + Turbopack
+- **Performance Superior**: Otimizações avançadas e caching inteligente
+- **Integração WhatsApp**: Nativa com Evolution API + Chatwoot
+- **Sistema de Agendamento**: Calendário avançado com RRule e feriados
 - **Real-time**: Atualizações instantâneas com Supabase Realtime
 - **Multi-tenant**: Isolamento seguro de dados por usuário
-- **Performance**: Otimizações avançadas com React Query
+- **Analytics Avançados**: Dashboard interativo com insights automáticos
 - **UX/UI**: Design system consistente com shadcn/ui
 - **Segurança**: RLS, autenticação robusta, validação de dados
 - **Escalabilidade**: Preparado para crescimento empresarial
+- **Hooks Customizados**: Lógica reutilizável e performática
+- **Developer Experience**: TypeScript, ESLint, Hot Reload com Turbopack
 
 ### **Tecnologias de Ponta**
 
-A escolha tecnológica (Next.js + Supabase + Evolution API) garante:
-- **Performance superior** com App Router e Edge Functions
-- **Segurança enterprise** com Row Level Security
-- **Facilidade de manutenção** com TypeScript e ESLint
+A escolha tecnológica (Next.js 15 + Supabase + Evolution API + Turbopack) garante:
+- **Performance superior** com App Router, Turbopack e Edge Functions
+- **Developer Experience** excepcional com hot reload ultrarrápido
+- **Segurança enterprise** com Row Level Security e validações robustas
+- **Facilidade de manutenção** com TypeScript rigoroso e ESLint
 - **Experiência de usuário** profissional e responsiva
-- **Integração perfeita** com WhatsApp Business
+- **Integração perfeita** com WhatsApp Business via Chatwoot
+- **Analytics avançados** com visualizações interativas
+- **Sistema de agendamento** profissional com calendário completo
 
 ### **Próximos Passos**
 
@@ -1018,7 +1200,130 @@ Para começar a usar o FavaleTrainer CRM:
 4. Conecte sua **instância WhatsApp**
 5. Importe seus **leads iniciais**
 
-**Versão do Documento**: 2.0  
-**Última Atualização**: Julho 2025  
+**Versão do Documento**: 3.0  
+**Última Atualização**: Janeiro 2025  
 **Autor**: Equipe de Desenvolvimento Favale  
-**Revisado por**: Claude AI Assistant
+**Revisado por**: Claude AI Assistant  
+**Novas Funcionalidades**: Sistema de Agendamento, Analytics Avançados, Performance Otimizada
+
+## 🚀 Atualizações Recentes (Janeiro 2025)
+
+### **Novas Funcionalidades Implementadas**
+
+#### **Sistema de Agendamento Completo**
+- ✅ **React Big Calendar** integrado com interface moderna
+- ✅ **Calendário personalizado** com localização pt-BR
+- ✅ **Agendamentos recorrentes** usando RRule
+- ✅ **Gestão de disponibilidade** de professores
+- ✅ **Sistema de serviços** com preços e durações
+- ✅ **Feriados automáticos** do Brasil
+- ✅ **Controle de ausências** e bloqueios de agenda
+
+#### **Performance e Developer Experience**
+- ✅ **Turbopack** habilitado para builds ultrarrápidos
+- ✅ **Custom Hooks** avançados para toda aplicação
+- ✅ **Otimizações de cache** com React Query
+- ✅ **Hooks de mutação** especializados para cada domínio
+- ✅ **TypeScript rigoroso** em todos os componentes
+- ✅ **Activity Heatmap** para análise de padrões
+
+#### **Melhorias na Integração WhatsApp**
+- ✅ **Chatwoot integration** para interface externa
+- ✅ **Schema consolidado** do banco de dados
+- ✅ **Instância única** gerenciada pelo sistema
+- ✅ **Realtime otimizado** para mensagens
+- ✅ **Redirecionamento automático** para chat externo
+
+#### **Analytics e Dashboard Avançados**
+- ✅ **Dashboard interativo** com múltiplas visualizações
+- ✅ **Gráficos de tendência** com Recharts
+- ✅ **Métricas em tempo real** otimizadas
+- ✅ **Comparativos automáticos** entre períodos
+- ✅ **Insights baseados em dados** históricos
+
+### **Melhorias Técnicas**
+
+#### **Arquitetura e Performance**
+- ✅ **Next.js 15.3.4** com App Router otimizado
+- ✅ **React Query 5.17.0** para cache inteligente
+- ✅ **Framer Motion 12.20.1** para animações fluidas
+- ✅ **Lucide React 0.446.0** com ícones otimizados
+- ✅ **Code splitting** automático por componente
+- ✅ **Lazy loading** estratégico
+
+#### **Database e Backend**
+- ✅ **Migrações consolidadas** para WhatsApp
+- ✅ **Funções SQL otimizadas** para chat lists
+- ✅ **Índices de performance** em queries críticas
+- ✅ **RLS policies** simplificadas e eficientes
+- ✅ **Realtime subscriptions** com filtros
+- ✅ **Triggers automáticos** para updated_at
+
+#### **Componentes e UI**
+- ✅ **LeadSheet** refatorado com múltiplas abas
+- ✅ **TaskEditCard** com interface moderna
+- ✅ **FilterPanel** com debounce otimizado
+- ✅ **BatchOperations** para ações em massa
+- ✅ **ScheduleCalendar** com eventos dinâmicos
+- ✅ **AppointmentDialog** para criação de agendamentos
+
+### **APIs e Endpoints Atualizados**
+
+#### **API Routes Implementadas**
+- ✅ `GET/POST /api/leads/import` - Importação de leads em lote
+- ✅ `POST /api/leads/import/batch` - Processamento em chunks
+- ✅ `GET /api/leads/import/batch/status/[jobId]` - Status do processamento
+- ✅ `POST /api/leads/import/batch/complete` - Finalização do lote
+- ✅ `POST /api/leads/import/batch/chunk` - Chunk individual
+- ✅ `GET/POST /api/users` - Gerenciamento de usuários
+- ✅ `GET/PUT/DELETE /api/users/[id]` - Operações por usuário
+
+#### **Hooks de Performance**
+```typescript
+// Hooks especializados para diferentes domínios
+useOptimizedDashboardStats()    // Dashboard com cache inteligente
+useRealtimeTasks()              // Tarefas com sincronização automática
+useLeadMutations()              // CRUD otimizado para leads
+useAppointmentMutations()       // Agendamentos com validações
+useCalendarEvents()             // Eventos do calendário com cache
+useAdvancedAnalytics()          // Analytics com métricas complexas
+```
+
+#### **Mutações Especializadas**
+```typescript
+// Mutações para leads com cache invalidation
+const createLeadMutation = useCreateLeadMutation(userId);
+const updateLeadMutation = useUpdateLeadMutation(userId);
+const deleteLeadMutation = useDeleteLeadMutation(userId);
+const batchUpdateLeadsMutation = useBatchUpdateLeadsMutation(userId);
+
+// Mutações para agendamentos com conflito detection
+const createAppointmentMutation = useCreateAppointmentMutation();
+const updateAppointmentMutation = useUpdateAppointmentMutation();
+const deleteAppointmentMutation = useDeleteAppointmentMutation();
+```
+
+### **Funcionalidades do Sistema de Agendamento**
+
+#### **Tabelas Implementadas**
+- ✅ `recurring_sessions` - Agendamentos recorrentes com RRule
+- ✅ `teacher_availability` - Disponibilidade por dia da semana
+- ✅ `teacher_absences` - Ausências e bloqueios de agenda
+- ✅ `services` - Catálogo de serviços com preços
+- ✅ `holidays` - Feriados nacionais e personalizados
+
+#### **Recursos do Calendário**
+- ✅ **Visualizações múltiplas**: Mês, semana, dia, agenda
+- ✅ **Eventos coloridos** por tipo de serviço
+- ✅ **Drag & drop** para reagendamentos
+- ✅ **Conflict detection** automático
+- ✅ **Recurring events** com padrões complexos
+- ✅ **Holiday integration** com date-holidays
+- ✅ **Timezone handling** correto para Brasil
+
+#### **Gestão de Disponibilidade**
+- ✅ **Horários por dia** da semana configuráveis
+- ✅ **Bloqueios temporários** para férias
+- ✅ **Exceções pontuais** facilmente gerenciadas
+- ✅ **Capacidade por slot** de tempo
+- ✅ **Overlap prevention** automático

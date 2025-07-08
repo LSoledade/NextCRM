@@ -32,21 +32,35 @@ export async function GET(
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
+    console.log('Status API - Auth check:', { user: user?.id, error: authError });
+    
     if (authError || !user) {
       console.error('Auth error:', authError);
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    // Verificar se o usuário é admin
+    // Verificar role diretamente do user_metadata (mais confiável)
+    const userRole = user.user_metadata?.role;
+    console.log('Status API - User role from metadata:', userRole);
+    
+    if (userRole !== 'admin') {
+      console.error('Admin verification failed. User role:', userRole);
+      return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem acessar status de importação.' }, { status: 403 });
+    }
+
+    // Como fallback, também verificar na tabela public.users
     const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
       .single();
-
-    if (profileError || !profile || profile.role !== 'admin') {
-      console.error('Admin verification failed:', profileError);
-      return NextResponse.json({ error: 'Acesso negado. Apenas administradores podem acessar status de importação.' }, { status: 403 });
+      
+    console.log('Status API - Profile check:', { profile, profileError });
+    
+    // Se não existir na tabela public, mas tem role admin no metadata, permitir
+    if (profileError && userRole !== 'admin') {
+      console.error('No profile found and not admin in metadata');
+      return NextResponse.json({ error: 'Usuário não encontrado no sistema.' }, { status: 403 });
     }
 
     const resolvedParams = await params;
