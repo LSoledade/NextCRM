@@ -28,7 +28,15 @@ export async function POST(request: Request) {
 
   // 2. Parse the payload
   const payload = JSON.parse(body);
-  const { event, name, email, phone_number, custom_attributes } = payload;
+  console.log('📦 Received payload:', JSON.stringify(payload, null, 2));
+  
+  const { event, data } = payload;
+  console.log('🎯 Event:', event);
+  console.log('📋 Data object:', JSON.stringify(data, null, 2));
+  
+  // Extract contact data from the data object
+  const { name, email, phone_number, custom_attributes } = data || {};
+  console.log('👤 Extracted fields:', { name, email, phone_number, custom_attributes });
 
   // 3. Process only contact_created and contact_updated events
   if (event !== 'contact_created' && event !== 'contact_updated') {
