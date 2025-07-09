@@ -202,6 +202,7 @@ export default function FilterPanel({
                     <OptimizedSelectItem value="Site">Site</OptimizedSelectItem>
                     <OptimizedSelectItem value="Indicação">Indicação</OptimizedSelectItem>
                     <OptimizedSelectItem value="WhatsApp">WhatsApp</OptimizedSelectItem>
+                    <OptimizedSelectItem value="Chatwoot">Chatwoot</OptimizedSelectItem>
                     <OptimizedSelectItem value="Google Ads">Google Ads</OptimizedSelectItem>
                   </OptimizedSelectContent>
                 </OptimizedSelect>

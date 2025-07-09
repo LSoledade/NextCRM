@@ -25,7 +25,7 @@ export interface Database {
         Row: {
           id: string;
           name: string;
-          email: string;
+          email: string | null;
           phone: string | null;
           status: 'New' | 'Contacted' | 'Converted' | 'Lost';
           tags: string[] | null;
@@ -39,7 +39,7 @@ export interface Database {
         Insert: {
           id?: string;
           name: string;
-          email: string;
+          email?: string | null;
           phone?: string | null;
           status?: 'New' | 'Contacted' | 'Converted' | 'Lost';
           tags?: string[] | null;
@@ -52,11 +52,12 @@ export interface Database {
         Update: {
           id?: string;
           name?: string;
-          email?: string;
+          email?: string | null;
           phone?: string | null;
           status?: 'New' | 'Contacted' | 'Converted' | 'Lost';
           tags?: string[] | null;
           source?: string | null;
+          company?: 'Favale' | 'Pink' | 'Favale&Pink' | null;
           created_at?: string;
           updated_at?: string;
           user_id?: string;
