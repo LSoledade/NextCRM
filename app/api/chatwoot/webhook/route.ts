@@ -51,15 +51,17 @@ export async function POST(request: Request) {
     let existingLead = null;
     
     if (email || phone_number) {
-      const conditions = [];
-      if (email) conditions.push(`email.eq.${email}`);
-      if (phone_number) conditions.push(`phone.eq.${phone_number}`);
+      let query = supabaseAdmin.from('leads').select('id, name');
       
-      const { data: leadData, error: queryError } = await supabaseAdmin
-        .from('leads')
-        .select('id')
-        .or(conditions.join(','))
-        .maybeSingle();
+      if (email && phone_number) {
+        query = query.or(`email.eq.${email},phone.eq.${phone_number}`);
+      } else if (email) {
+        query = query.eq('email', email);
+      } else if (phone_number) {
+        query = query.eq('phone', phone_number);
+      }
+      
+      const { data: leadData, error: queryError } = await query.maybeSingle();
         
       if (queryError) {
         console.error('Error querying for existing lead:', queryError);
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
       }
       
       existingLead = leadData;
+      console.log('🔍 Existing lead found:', existingLead);
      }
 
     // Validar company - só aceita valores específicos
