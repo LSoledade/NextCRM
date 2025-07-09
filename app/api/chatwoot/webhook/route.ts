@@ -30,13 +30,12 @@ export async function POST(request: Request) {
   const payload = JSON.parse(body);
   console.log('📦 Received payload:', JSON.stringify(payload, null, 2));
   
-  const { event, data } = payload;
+  const { event } = payload;
   console.log('🎯 Event:', event);
-  console.log('📋 Data object:', JSON.stringify(data, null, 2));
   
-  // Extract contact data from the data object
-  const { name, email, phone_number, custom_attributes } = data || {};
-  console.log('👤 Extracted fields:', { name, email, phone_number, custom_attributes });
+  // Extract contact data directly from payload (Chatwoot structure)
+  const { name, email, phone_number, custom_attributes, additional_attributes } = payload;
+  console.log('👤 Extracted fields:', { name, email, phone_number, custom_attributes, additional_attributes });
 
   // 3. Process only contact_created and contact_updated events
   if (event !== 'contact_created' && event !== 'contact_updated') {
@@ -49,23 +48,43 @@ export async function POST(request: Request) {
 
   try {
     // 4. Check if lead exists
-    let query = supabaseAdmin.from('leads').select('id').or(`email.eq.${email},phone.eq.${phone_number}`);
-    const { data: existingLead, error: queryError } = await query.maybeSingle();
+    let existingLead = null;
+    
+    if (email || phone_number) {
+      const conditions = [];
+      if (email) conditions.push(`email.eq.${email}`);
+      if (phone_number) conditions.push(`phone.eq.${phone_number}`);
+      
+      const { data: leadData, error: queryError } = await supabaseAdmin
+        .from('leads')
+        .select('id')
+        .or(conditions.join(','))
+        .maybeSingle();
+        
+      if (queryError) {
+        console.error('Error querying for existing lead:', queryError);
+        throw queryError;
+      }
+      
+      existingLead = leadData;
+     }
 
-    if (queryError) {
-      console.error('Error querying for existing lead:', queryError);
-      throw queryError;
-    }
-
-    const leadData = {
-      name: name,
-      email: email,
-      phone: phone_number,
-      source: 'Chatwoot',
-      tags: custom_attributes?.tags || [],
-      company: custom_attributes?.company_name || null,
-      user_id: process.env.DEFAULT_USER_ID_FOR_LEADS || null,
-    };
+    // Validar company - só aceita valores específicos
+     const validCompanies = ['Favale', 'Pink', 'Favale&Pink'];
+     const companyFromPayload = additional_attributes?.company_name || custom_attributes?.company_name;
+     const validatedCompany = validCompanies.includes(companyFromPayload) ? companyFromPayload : 'Favale';
+     
+     const leadData = {
+        name: name,
+        email: email || null,
+        phone: phone_number || null,
+        source: 'Chatwoot',
+        tags: custom_attributes?.tags || [],
+        company: validatedCompany,
+        user_id: process.env.DEFAULT_USER_ID_FOR_LEADS || null,
+      };
+     
+     console.log('💾 Lead data to save:', leadData);
 
     // 5. Upsert logic
     if (existingLead) {
