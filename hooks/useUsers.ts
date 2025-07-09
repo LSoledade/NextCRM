@@ -19,6 +19,15 @@ export function useUsers(role: 'student' | 'teacher') {
       setIsLoading(true);
       
       try {
+        // Verificar se o usuário está autenticado antes de fazer consultas
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.error('Usuário não autenticado');
+          setUsers([]);
+          setIsLoading(false);
+          return;
+        }
+
         if (role === 'student') {
           // Buscar estudantes com join na tabela leads para pegar o nome
           const { data, error } = await supabase

@@ -25,18 +25,13 @@ export function ThemeToggle({
 
   if (!mounted) {
     return (
-      <Button 
-        variant="ghost" 
-        size={size} 
+      <div 
         className={cn(
           "relative transition-all duration-200",
           size === 'icon' && "h-9 w-9 rounded-full",
           className
         )}
-      >
-        <Sun className="h-4 w-4" />
-        <span className="sr-only">Toggle theme</span>
-      </Button>
+      />
     );
   }
 

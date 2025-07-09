@@ -95,10 +95,16 @@ export default function TasksPage() {
       }
       setUsersLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, username, role, created_at') // Incluir created_at
-          .order('username');
+        // Aguardar a sessão estar disponível antes de fazer a consulta
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.error('Usuário não autenticado');
+          setUsers([]);
+          setUsersLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase.rpc('get_all_users');
         if (error) throw error;
         setUsers(data || []);
       } catch (error) {

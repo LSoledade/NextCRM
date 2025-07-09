@@ -43,60 +43,94 @@ export const useRealtimeTasks = () => {
   useEffect(() => {
     if (!userId) return;
 
-    const channel = supabase
-      .channel(`realtime-tasks-${userId}`)
-      .on<Task>(
-        'postgres_changes',
-        {
-          event: '*', // Escutar INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'tasks',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload: RealtimePostgresChangesPayload<Task>) => {
-          console.log('Mudança real-time nas tasks recebida:', payload);
+    let reconnectTimeout: NodeJS.Timeout;
+    let isSubscribed = true;
 
-          const queryKey = [TASKS_QUERY_KEY, userId];
+    const setupChannel = () => {
+      if (!isSubscribed) return;
 
-          queryClient.setQueryData<Task[]>(queryKey, (currentData) => {
-            const oldData = currentData || [];
-            if (payload.eventType === 'INSERT') {
-              // Adicionar nova task, evitando duplicatas se já existir (pouco provável com IDs únicos)
-              if (oldData.find(task => task.id === payload.new.id)) return oldData;
-              return [payload.new, ...oldData];
-            }
-            if (payload.eventType === 'UPDATE') {
-              return oldData.map(task =>
-                task.id === payload.new.id ? payload.new : task
-              );
-            }
-            if (payload.eventType === 'DELETE') {
-              // O payload.old contém os dados da linha deletada, incluindo o ID
-              if (!payload.old || !('id' in payload.old)) {
-                console.warn("DELETE payload.old não tem ID, invalidando query como fallback.", payload);
-                queryClient.invalidateQueries({ queryKey });
-                return oldData;
+      const channel = supabase
+        .channel(`realtime-tasks-${userId}`)
+        .on<Task>(
+          'postgres_changes',
+          {
+            event: '*', // Escutar INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'tasks',
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload: RealtimePostgresChangesPayload<Task>) => {
+            console.log('Mudança real-time nas tasks recebida:', payload);
+
+            const queryKey = [TASKS_QUERY_KEY, userId];
+
+            queryClient.setQueryData<Task[]>(queryKey, (currentData) => {
+              const oldData = currentData || [];
+              if (payload.eventType === 'INSERT') {
+                // Adicionar nova task, evitando duplicatas se já existir (pouco provável com IDs únicos)
+                if (oldData.find(task => task.id === payload.new.id)) return oldData;
+                return [payload.new, ...oldData];
               }
-              return oldData.filter(task => task.id !== (payload.old as Task).id);
+              if (payload.eventType === 'UPDATE') {
+                return oldData.map(task =>
+                  task.id === payload.new.id ? payload.new : task
+                );
+              }
+              if (payload.eventType === 'DELETE') {
+                // O payload.old contém os dados da linha deletada, incluindo o ID
+                if (!payload.old || !('id' in payload.old)) {
+                  console.warn("DELETE payload.old não tem ID, invalidando query como fallback.", payload);
+                  queryClient.invalidateQueries({ queryKey });
+                  return oldData;
+                }
+                return oldData.filter(task => task.id !== (payload.old as Task).id);
+              }
+              return oldData;
+            });
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`Conectado ao canal real-time de tasks para usuário ${userId}`);
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn(`Erro no canal real-time de tasks (Status: ${status}):`, err);
+            // Tentar reconectar após 3 segundos
+            if (isSubscribed) {
+              reconnectTimeout = setTimeout(() => {
+                console.log('Tentando reconectar ao canal real-time de tasks...');
+                supabase.removeChannel(channel);
+                setupChannel();
+              }, 3000);
             }
-            return oldData;
-          });
-        }
-      )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`Conectado ao canal real-time de tasks para usuário ${userId}`);
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.error(`Erro no canal real-time de tasks (Status: ${status}):`, err);
-          // Poderia tentar reconectar ou notificar o usuário
-        }
-      });
+          }
+          if (status === 'CLOSED') {
+            console.warn(`Canal real-time de tasks fechado (Status: ${status}):`, err);
+            // Tentar reconectar após 1 segundo para canais fechados
+            if (isSubscribed) {
+              reconnectTimeout = setTimeout(() => {
+                console.log('Reconectando canal real-time de tasks após fechamento...');
+                setupChannel();
+              }, 1000);
+            }
+          }
+        });
+
+      return channel;
+    };
+
+    const channel = setupChannel();
 
     // Cleanup da subscription ao desmontar o componente ou quando userId mudar
     return () => {
-      console.log(`Desconectando do canal real-time de tasks para usuário ${userId}`);
-      supabase.removeChannel(channel);
+      isSubscribed = false;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (channel) {
+        console.log(`Desconectando do canal real-time de tasks para usuário ${userId}`);
+        supabase.removeChannel(channel);
+      }
     };
   }, [userId, queryClient]);
 
