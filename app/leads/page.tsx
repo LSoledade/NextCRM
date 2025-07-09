@@ -105,8 +105,12 @@ export default function LeadsPage() {
         *,
         students(id)
       `)
-      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
+
+    // Se o usuário não for admin, filtrar apenas seus leads
+    if (user.role !== 'admin') {
+      query = query.eq('user_id', user.id);
+    }
 
     if (filters.source) query = query.eq('source', filters.source);
     if (filters.status) query = query.eq('status', filters.status);
@@ -148,11 +152,11 @@ export default function LeadsPage() {
 
   // Instanciar os hooks de mutação
   const createLeadMutation = useCreateLeadMutation(user?.id);
-  const updateLeadMutation = useUpdateLeadMutation(user?.id);
-  const deleteLeadMutation = useDeleteLeadMutation(user?.id);
-  const batchUpdateLeadsStatusMutation = useBatchUpdateLeadsStatusMutation(user?.id);
-  const batchUpdateLeadsSourceMutation = useBatchUpdateLeadsSourceMutation(user?.id);
-  const batchDeleteLeadsMutation = useBatchDeleteLeadsMutation(user?.id);
+  const updateLeadMutation = useUpdateLeadMutation(user?.id, user?.role);
+  const deleteLeadMutation = useDeleteLeadMutation(user?.id, user?.role);
+  const batchUpdateLeadsStatusMutation = useBatchUpdateLeadsStatusMutation(user?.id, user?.role);
+  const batchUpdateLeadsSourceMutation = useBatchUpdateLeadsSourceMutation(user?.id, user?.role);
+  const batchDeleteLeadsMutation = useBatchDeleteLeadsMutation(user?.id, user?.role);
 
   const handleCreateLead = async (leadData: InsertLead) => {
     try {

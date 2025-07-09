@@ -57,19 +57,23 @@ export const useCreateLeadMutation = (userId: string | undefined) => {
 };
 
 // Hook para atualizar um Lead existente
-export const useUpdateLeadMutation = (userId: string | undefined) => {
+export const useUpdateLeadMutation = (userId: string | undefined, userRole?: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...leadData }: UpdateLead & { id: string }) => {
       if (!userId) throw new Error('User ID is required to update a lead.');
-      const { data, error } = await supabase
+      let query = supabase
         .from('leads')
         .update(leadData)
-        .eq('id', id)
-        .eq('user_id', userId) // Garante que o usuário só atualize seus próprios leads
-        .select()
-        .single();
+        .eq('id', id);
+      
+      // Se o usuário não for admin, só pode atualizar seus próprios leads
+      if (userRole !== 'admin') {
+        query = query.eq('user_id', userId);
+      }
+      
+      const { data, error } = await query.select().single();
       if (error) throw error;
       return data;
     },
@@ -82,17 +86,23 @@ export const useUpdateLeadMutation = (userId: string | undefined) => {
 };
 
 // Hook para deletar um Lead
-export const useDeleteLeadMutation = (userId: string | undefined) => {
+export const useDeleteLeadMutation = (userId: string | undefined, userRole?: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (leadId: string) => {
       if (!userId) throw new Error('User ID is required to delete a lead.');
-      const { error } = await supabase
+      let query = supabase
         .from('leads')
         .delete()
-        .eq('id', leadId)
-        .eq('user_id', userId); // Garante que o usuário só delete seus próprios leads
+        .eq('id', leadId);
+      
+      // Se o usuário não for admin, só pode deletar seus próprios leads
+      if (userRole !== 'admin') {
+        query = query.eq('user_id', userId);
+      }
+      
+      const { error } = await query;
       if (error) throw error;
       return leadId;
     },
@@ -103,19 +113,24 @@ export const useDeleteLeadMutation = (userId: string | undefined) => {
 };
 
 // Hook para atualizar status de Leads em lote
-export const useBatchUpdateLeadsStatusMutation = (userId: string | undefined) => {
+export const useBatchUpdateLeadsStatusMutation = (userId: string | undefined, userRole?: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
       if (!userId) throw new Error('User ID is required to batch update leads.');
       if (ids.length === 0) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from('leads')
         .update({ status: status as any }) // O 'as any' pode ser necessário dependendo da definição de tipo do status
-        .in('id', ids)
-        .eq('user_id', userId)
-        .select();
+        .in('id', ids);
+      
+      // Se o usuário não for admin, só pode atualizar seus próprios leads
+      if (userRole !== 'admin') {
+        query = query.eq('user_id', userId);
+      }
+      
+      const { data, error } = await query.select();
       if (error) throw error;
       return data;
     },
@@ -126,19 +141,24 @@ export const useBatchUpdateLeadsStatusMutation = (userId: string | undefined) =>
 };
 
 // Hook para atualizar origem de Leads em lote
-export const useBatchUpdateLeadsSourceMutation = (userId: string | undefined) => {
+export const useBatchUpdateLeadsSourceMutation = (userId: string | undefined, userRole?: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ ids, source }: { ids: string[]; source: string }) => {
       if (!userId) throw new Error('User ID is required to batch update leads.');
       if (ids.length === 0) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from('leads')
         .update({ source })
-        .in('id', ids)
-        .eq('user_id', userId)
-        .select();
+        .in('id', ids);
+      
+      // Se o usuário não for admin, só pode atualizar seus próprios leads
+      if (userRole !== 'admin') {
+        query = query.eq('user_id', userId);
+      }
+      
+      const { data, error } = await query.select();
       if (error) throw error;
       return data;
     },
@@ -149,18 +169,24 @@ export const useBatchUpdateLeadsSourceMutation = (userId: string | undefined) =>
 };
 
 // Hook para deletar Leads em lote
-export const useBatchDeleteLeadsMutation = (userId: string | undefined) => {
+export const useBatchDeleteLeadsMutation = (userId: string | undefined, userRole?: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (ids: string[]) => {
       if (!userId) throw new Error('User ID is required to batch delete leads.');
       if (ids.length === 0) return null;
-      const { error } = await supabase
+      let query = supabase
         .from('leads')
         .delete()
-        .in('id', ids)
-        .eq('user_id', userId);
+        .in('id', ids);
+      
+      // Se o usuário não for admin, só pode deletar seus próprios leads
+      if (userRole !== 'admin') {
+        query = query.eq('user_id', userId);
+      }
+      
+      const { error } = await query;
       if (error) throw error;
       return ids;
     },
