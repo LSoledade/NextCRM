@@ -158,7 +158,7 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
                 <Label htmlFor="name">Nome *</Label>
                 <Input
                   id="name"
-                  value={formData.name}
+                  value={formData.name || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   required
                   disabled={loading}
@@ -169,7 +169,7 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
                 <Input
                   id="email"
                   type="email"
-                  value={formData.email}
+                  value={formData.email || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                   required
                   disabled={loading}

@@ -102,7 +102,7 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
     if (lead) {
       setEditForm({
         name: lead.name,
-        email: lead.email,
+        email: lead.email || '',
         phone: lead.phone || '',
         status: lead.status,
         source: lead.source || '',
