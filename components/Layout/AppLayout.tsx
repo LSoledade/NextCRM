@@ -418,18 +418,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
               <div className="flex items-center gap-2 dropdown-fix">
                 <WeatherWidget />
                 <ThemeToggle />
-                {/* Button to show right panel when hidden */}
-                {!rightPanelVisible && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRightPanelToggle(true)}
-                    className="text-muted-foreground hover:text-foreground rounded-full h-8 w-8 transition-all duration-200 hover:bg-accent/50"
-                  >
+                {/* Button to toggle right panel */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRightPanelToggle(!rightPanelVisible)}
+                  className="text-muted-foreground hover:text-foreground rounded-full h-8 w-8 transition-all duration-200 hover:bg-accent/50"
+                >
+                  {rightPanelVisible ? (
+                    <MenuIcon className="h-4 w-4" />
+                  ) : (
                     <ChevronLeft className="h-4 w-4" />
-                    <span className="sr-only">Mostrar painel lateral</span>
-                  </Button>
-                )}
+                  )}
+                  <span className="sr-only">
+                    {rightPanelVisible ? 'Fechar painel lateral' : 'Mostrar painel lateral'}
+                  </span>
+                </Button>
                 <UserMenu />
               </div>
             </header>

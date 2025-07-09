@@ -114,6 +114,11 @@
   /* Garante que os Portals do Radix UI (usados por dropdowns, dialogs, etc.) 
      tenham um z-index elevado para ficarem sobre outros conteúdos. */
   [data-radix-popper-content-wrapper] {
-    z-index: 50 !important;
+    z-index: 80 !important;
+  }
+  
+  /* Garante que os tooltips tenham prioridade sobre outros elementos */
+  [data-radix-tooltip-content] {
+    z-index: 90 !important;
   }
 }

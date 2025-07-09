@@ -1,14 +1,11 @@
 'use client';
 
-import { useCallback } from 'react';
 import {
   CalendarDays,
   StickyNote,
   CheckSquare,
   Bookmark,
   Bell,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -21,13 +18,6 @@ interface RightSidebarProps {
 }
 
 export default function RightSidebar({ className, isVisible = true, onToggle }: RightSidebarProps) {
-  // Handler for toggling right panel visibility
-  const handleRightPanelToggle = useCallback(() => {
-    if (onToggle) {
-      onToggle(!isVisible);
-    }
-  }, [isVisible, onToggle]);
-
   // If not visible, don't render anything
   if (!isVisible) {
     return null;
@@ -119,25 +109,7 @@ export default function RightSidebar({ className, isVisible = true, onToggle }: 
         </Tooltip>
       </div>
 
-      {/* Bottom section with hide button */}
-      <div className="flex flex-col gap-3 items-center mb-1">
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleRightPanelToggle}
-              className="text-muted-foreground hover:text-foreground rounded-full h-8 w-8 transition-all duration-200 hover:bg-accent/50"
-            >
-              <ChevronRight className="h-4 w-4" />
-              <span className="sr-only">Esconder painel</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left" className="font-medium">
-            Esconder painel
-          </TooltipContent>
-        </Tooltip>
-      </div>
+
     </aside>
   );
 }

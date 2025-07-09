@@ -8,8 +8,13 @@ import { ThemeProvider } from '@/components/theme-provider';
 const outfit = Outfit({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'FavaleTrainer CRM',
+  title: 'Favale Manager',
   description: 'Sistema de CRM para Personal Trainers da Favale',
+  icons: {
+    icon: '/logotipofavale.svg',
+    shortcut: '/logotipofavale.svg',
+    apple: '/logotipofavale.svg',
+  },
 };
 
 export default function RootLayout({
