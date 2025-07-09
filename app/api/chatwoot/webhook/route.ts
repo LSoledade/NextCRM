@@ -4,21 +4,26 @@ import crypto from 'crypto';
 
 export async function POST(request: Request) {
 
-  // 1. Verify HMAC Signature
+  // 1. Verify HMAC Signature (optional)
   const chatwootWebhookSecret = process.env.CHATWOOT_WEBHOOK_SECRET;
-  if (!chatwootWebhookSecret) {
-    console.error('CHATWOOT_WEBHOOK_SECRET is not set.');
-    return NextResponse.json({ error: 'Server configuration error.' }, { status: 500 });
-  }
-
   const signature = request.headers.get('x-chatwoot-hmac-sha256');
   const body = await request.text();
 
-  const hmac = crypto.createHmac('sha256', chatwootWebhookSecret);
-  const digest = hmac.update(body).digest('hex');
+  // Se há uma chave secreta configurada, validar HMAC
+  if (chatwootWebhookSecret && signature) {
+    const hmac = crypto.createHmac('sha256', chatwootWebhookSecret);
+    const digest = hmac.update(body).digest('hex');
 
-  if (digest !== signature) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (digest !== signature) {
+      console.error('Invalid HMAC signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+    console.log('✅ HMAC signature validated');
+  } else if (chatwootWebhookSecret && !signature) {
+    console.error('HMAC secret configured but no signature provided');
+    return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+  } else {
+    console.log('⚠️ HMAC validation skipped (no secret configured)');
   }
 
   // 2. Parse the payload
