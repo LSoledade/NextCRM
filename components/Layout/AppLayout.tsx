@@ -6,15 +6,14 @@ import {
   LayoutDashboard,
   Users,
   ClipboardList,
-  Dumbbell,
   GraduationCap,
   Calendar,
-  UserCircle,
   LogOut,
   Menu as MenuIcon,
   ChevronLeft,
   ChevronRight,
   MessageSquare,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -47,13 +46,12 @@ const MOBILE_BREAKPOINT = 768;
 
 const menuItems = [
   { text: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { text: 'Gerenciamento', icon: Building2, path: '/management' },
   { text: 'Leads', icon: Users, path: '/leads' },
   { text: 'Chat', icon: MessageSquare, path: '/whatsapp' },
   { text: 'Tarefas', icon: ClipboardList, path: '/tasks' },
-  { text: 'Treinadores', icon: Dumbbell, path: '/trainers' },
   { text: 'Alunos', icon: GraduationCap, path: '/students' },
-  { text: 'Sessões', icon: Calendar, path: '/sessions' },
-  { text: 'Agenda', icon: Calendar, path: '/schedule' }, // Adiciona o link para o calendário
+  { text: 'Agenda', icon: Calendar, path: '/schedule' },
 ] as const;
 
 interface AppLayoutProps {
@@ -121,6 +119,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
     if (pathname === '/settings') {
       return 'Configurações';
+    }
+    if (pathname === '/management') {
+      return 'Gerenciamento';
     }
     
     return 'CRM Personal Trainer';
