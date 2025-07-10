@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS recurring_sessions (
 CREATE TABLE IF NOT EXISTS teacher_availability (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     teacher_id UUID NOT NULL REFERENCES trainers(id) ON DELETE CASCADE,
-    day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6), -- 0 = Sunday, 6 = Saturday
+    day TEXT NOT NULL, -- e.g., 'monday', 'tuesday'
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     is_available BOOLEAN DEFAULT TRUE,
@@ -88,89 +88,34 @@ ALTER TABLE services ENABLE ROW LEVEL SECURITY;
 -- =====================================================
 
 -- Políticas RLS para recurring_sessions
-CREATE POLICY "Users can read own recurring_sessions"
-  ON recurring_sessions FOR SELECT
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can insert own recurring_sessions"
-  ON recurring_sessions FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Users can update own recurring_sessions"
-  ON recurring_sessions FOR UPDATE
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can delete own recurring_sessions"
-  ON recurring_sessions FOR DELETE
-  USING (user_id = auth.uid());
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read own recurring_sessions' AND tablename = 'recurring_sessions') THEN CREATE POLICY "Users can read own recurring_sessions" ON recurring_sessions FOR SELECT USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert own recurring_sessions' AND tablename = 'recurring_sessions') THEN CREATE POLICY "Users can insert own recurring_sessions" ON recurring_sessions FOR INSERT WITH CHECK (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own recurring_sessions' AND tablename = 'recurring_sessions') THEN CREATE POLICY "Users can update own recurring_sessions" ON recurring_sessions FOR UPDATE USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete own recurring_sessions' AND tablename = 'recurring_sessions') THEN CREATE POLICY "Users can delete own recurring_sessions" ON recurring_sessions FOR DELETE USING (user_id = auth.uid()); END IF; END $$;
 
 -- Políticas RLS para teacher_availability
-CREATE POLICY "Users can read own teacher_availability"
-  ON teacher_availability FOR SELECT
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can insert own teacher_availability"
-  ON teacher_availability FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Users can update own teacher_availability"
-  ON teacher_availability FOR UPDATE
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can delete own teacher_availability"
-  ON teacher_availability FOR DELETE
-  USING (user_id = auth.uid());
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read own teacher_availability' AND tablename = 'teacher_availability') THEN CREATE POLICY "Users can read own teacher_availability" ON teacher_availability FOR SELECT USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert own teacher_availability' AND tablename = 'teacher_availability') THEN CREATE POLICY "Users can insert own teacher_availability" ON teacher_availability FOR INSERT WITH CHECK (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own teacher_availability' AND tablename = 'teacher_availability') THEN CREATE POLICY "Users can update own teacher_availability" ON teacher_availability FOR UPDATE USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete own teacher_availability' AND tablename = 'teacher_availability') THEN CREATE POLICY "Users can delete own teacher_availability" ON teacher_availability FOR DELETE USING (user_id = auth.uid()); END IF; END $$;
 
 -- Políticas RLS para teacher_absences
-CREATE POLICY "Users can read own teacher_absences"
-  ON teacher_absences FOR SELECT
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can insert own teacher_absences"
-  ON teacher_absences FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Users can update own teacher_absences"
-  ON teacher_absences FOR UPDATE
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can delete own teacher_absences"
-  ON teacher_absences FOR DELETE
-  USING (user_id = auth.uid());
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read own teacher_absences' AND tablename = 'teacher_absences') THEN CREATE POLICY "Users can read own teacher_absences" ON teacher_absences FOR SELECT USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert own teacher_absences' AND tablename = 'teacher_absences') THEN CREATE POLICY "Users can insert own teacher_absences" ON teacher_absences FOR INSERT WITH CHECK (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own teacher_absences' AND tablename = 'teacher_absences') THEN CREATE POLICY "Users can update own teacher_absences" ON teacher_absences FOR UPDATE USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete own teacher_absences' AND tablename = 'teacher_absences') THEN CREATE POLICY "Users can delete own teacher_absences" ON teacher_absences FOR DELETE USING (user_id = auth.uid()); END IF; END $$;
 
 -- Políticas RLS para holidays
-CREATE POLICY "Users can read own holidays"
-  ON holidays FOR SELECT
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can insert own holidays"
-  ON holidays FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Users can update own holidays"
-  ON holidays FOR UPDATE
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can delete own holidays"
-  ON holidays FOR DELETE
-  USING (user_id = auth.uid());
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read own holidays' AND tablename = 'holidays') THEN CREATE POLICY "Users can read own holidays" ON holidays FOR SELECT USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert own holidays' AND tablename = 'holidays') THEN CREATE POLICY "Users can insert own holidays" ON holidays FOR INSERT WITH CHECK (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own holidays' AND tablename = 'holidays') THEN CREATE POLICY "Users can update own holidays" ON holidays FOR UPDATE USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete own holidays' AND tablename = 'holidays') THEN CREATE POLICY "Users can delete own holidays" ON holidays FOR DELETE USING (user_id = auth.uid()); END IF; END $$;
 
 -- Políticas RLS para services
-CREATE POLICY "Users can read own services"
-  ON services FOR SELECT
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can insert own services"
-  ON services FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Users can update own services"
-  ON services FOR UPDATE
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can delete own services"
-  ON services FOR DELETE
-  USING (user_id = auth.uid());
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read own services' AND tablename = 'services') THEN CREATE POLICY "Users can read own services" ON services FOR SELECT USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert own services' AND tablename = 'services') THEN CREATE POLICY "Users can insert own services" ON services FOR INSERT WITH CHECK (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own services' AND tablename = 'services') THEN CREATE POLICY "Users can update own services" ON services FOR UPDATE USING (user_id = auth.uid()); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete own services' AND tablename = 'services') THEN CREATE POLICY "Users can delete own services" ON services FOR DELETE USING (user_id = auth.uid()); END IF; END $$;
 
 -- =====================================================
 -- ÍNDICES PARA PERFORMANCE

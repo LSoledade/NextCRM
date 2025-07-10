@@ -17,6 +17,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AvailabilityEditor } from './AvailabilityEditor';
 import { Availability, Blockout } from '@/types/types';
 
+const daysOfWeek = [
+  { id: 'monday', label: 'Segunda', short: 'SEG' },
+  { id: 'tuesday', label: 'Terça', short: 'TER' },
+  { id: 'wednesday', label: 'Quarta', short: 'QUA' },
+  { id: 'thursday', label: 'Quinta', short: 'QUI' },
+  { id: 'friday', label: 'Sexta', short: 'SEX' },
+  { id: 'saturday', label: 'Sábado', short: 'SAB' },
+  { id: 'sunday', label: 'Domingo', short: 'DOM' },
+];
+
 
 interface Teacher {
   id: string;
@@ -46,23 +56,51 @@ export function TeacherManagement() {
   const fetchTeacherAvailability = async (teacherId: string) => {
     try {
       const { data: availabilityData, error: availabilityError } = await supabase
-        .from('availability')
+        .from('teacher_availability')
         .select('*')
         .eq('teacher_id', teacherId);
       if (availabilityError) throw availabilityError;
-      setAvailability(availabilityData || []);
+      const formattedAvailability = (availabilityData || []).map(a => ({ 
+        ...a, 
+        startTime: a.start_time, 
+        endTime: a.end_time, 
+        enabled: true 
+      }));
+      setAvailability(formattedAvailability);
 
       const { data: blockoutsData, error: blockoutsError } = await supabase
-        .from('blockouts')
+        .from('teacher_absences')
         .select('*')
         .eq('teacher_id', teacherId);
       if (blockoutsError) throw blockoutsError;
-      setBlockouts(blockoutsData || []);
-    } catch (error) {
+      const formattedBlockouts = (blockoutsData || []).map(b => {
+        // Não calcular o dia automaticamente - usar o dia original do bloqueio
+        // O dia já está sendo salvo corretamente no AvailabilityEditor
+        let dayId = '';
+        if (b.start_date) {
+          const date = new Date(b.start_date);
+          const dayOfWeek = date.getDay(); // 0=domingo, 1=segunda, etc.
+          // Mapear corretamente: domingo=0 -> sunday, segunda=1 -> monday, etc.
+          const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          dayId = dayMap[dayOfWeek];
+        }
+        
+        return {
+          ...b, 
+          title: b.reason || '',
+          startDate: b.start_date ? new Date(b.start_date).toISOString().split('T')[0] : '',
+          endDate: b.end_date ? new Date(b.end_date).toISOString().split('T')[0] : '',
+          startTime: b.start_time || '',
+          endTime: b.end_time || '',
+          day: dayId // Para agrupamento na UI apenas
+        };
+      });
+      setBlockouts(formattedBlockouts);
+    } catch (error: any) {
       console.error('Erro ao buscar disponibilidade do professor:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível carregar a disponibilidade do professor.',
+        description: error.message || 'Não foi possível carregar a disponibilidade do professor.',
         variant: 'destructive',
       });
     }
@@ -82,11 +120,11 @@ export function TeacherManagement() {
 
       if (error) throw error;
       setTeachers(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao buscar professores:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível carregar os professores.',
+        description: error.message || 'Não foi possível carregar os professores.',
         variant: 'destructive'
       });
     } finally {
@@ -132,26 +170,8 @@ export function TeacherManagement() {
 
         if (error) throw error;
 
-        // Salvar disponibilidade e bloqueios
-        if (editingTeacher) {
-          // Deletar dados antigos
-          await supabase.from('availability').delete().eq('teacher_id', editingTeacher.id);
-          await supabase.from('blockouts').delete().eq('teacher_id', editingTeacher.id);
-
-          // Inserir novos dados
-          const availabilityToInsert = availability.map(a => ({ ...a, teacher_id: editingTeacher.id }));
-          const blockoutsToInsert = blockouts.map(b => ({ ...b, teacher_id: editingTeacher.id }));
-
-          if (availabilityToInsert.length > 0) {
-            const { error: availabilityError } = await supabase.from('availability').insert(availabilityToInsert);
-            if (availabilityError) throw availabilityError;
-          }
-
-          if (blockoutsToInsert.length > 0) {
-            const { error: blockoutsError } = await supabase.from('blockouts').insert(blockoutsToInsert);
-            if (blockoutsError) throw blockoutsError;
-          }
-        }
+        // A disponibilidade e bloqueios já são salvos automaticamente pelo AvailabilityEditor
+        // quando teacherId é fornecido, então não precisamos fazer nada aqui
         
         toast({
           title: 'Sucesso',
@@ -173,11 +193,11 @@ export function TeacherManagement() {
       setDialogOpen(false);
       resetForm();
       fetchTeachers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar professor:', error);
       toast({
-        title: 'Erro',
-        description: 'Não foi possível salvar o professor.',
+        title: 'Erro ao Salvar Professor',
+        description: error.message || 'Ocorreu um erro desconhecido.',
         variant: 'destructive'
       });
     }
@@ -212,11 +232,11 @@ export function TeacherManagement() {
       });
       
       fetchTeachers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao excluir professor:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível excluir o professor.',
+        description: error.message || 'Não foi possível excluir o professor.',
         variant: 'destructive'
       });
     }
@@ -324,6 +344,7 @@ export function TeacherManagement() {
                            setAvailability={setAvailability}
                            blockouts={blockouts}
                            setBlockouts={setBlockouts}
+                           teacherId={editingTeacher.id}
                          />
                        </CardContent>
                      </Card>

@@ -10,8 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { X, Plus, Clock, Calendar, AlertCircle, Copy } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { Availability, Blockout } from '@/types/types';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 const daysOfWeek = [
   { id: 'monday', label: 'Segunda', short: 'SEG' },
@@ -30,30 +33,86 @@ interface AvailabilityEditorProps {
   setAvailability?: (availability: Availability[]) => void;
   blockouts?: Blockout[];
   setBlockouts?: (blockouts: Blockout[]) => void;
+  teacherId?: string;
 }
 
 export function AvailabilityEditor({ 
   availability = [], 
   setAvailability = () => {},
   blockouts = [], 
-  setBlockouts = () => {} 
+  setBlockouts = () => {},
+  teacherId 
 }: AvailabilityEditorProps) {
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const { user } = useAuth();
 
-  const handleDayToggle = (day: string) => {
-    setSelectedDays(prev => 
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-    );
-  };
 
-  const handleTimeChange = (day: string, type: 'startTime' | 'endTime', value: string) => {
-    const existing = availability.find(a => a.day === day);
-    if (existing) {
-      setAvailability(availability.map(a => a.day === day ? { ...a, [type]: value } : a));
+    const handleDayToggle = (day: string) => {
+    const isCurrentlyEnabled = isDayEnabled(day);
+
+    if (isCurrentlyEnabled) {
+      // Disable the day: remove availability and associated blockouts
+      const newAvailability = availability.filter(a => a.day !== day);
+      const newBlockouts = blockouts.filter(b => b.day !== day);
+      setAvailability(newAvailability);
+      setBlockouts(newBlockouts);
+      // Salvar automaticamente no Supabase quando houver alterações
+      if (teacherId) {
+        saveAvailabilityToSupabase(newAvailability);
+        saveBlockoutsToSupabase(newBlockouts);
+      }
     } else {
-      setAvailability([...availability, { day, startTime: type === 'startTime' ? value : '', endTime: type === 'endTime' ? value : '' }]);
+      // Enable the day: set default availability
+      const newSchedule = { day, startTime: '05:00', endTime: '21:00' };
+      const existingIndex = availability.findIndex(a => a.day === day);
+      const newAvailability = [...availability];
+      if (existingIndex > -1) {
+        newAvailability[existingIndex] = { ...newAvailability[existingIndex], ...newSchedule };
+      } else {
+        newAvailability.push(newSchedule);
+      }
+      setAvailability(newAvailability);
+      // Salvar automaticamente no Supabase quando houver alterações
+      if (teacherId) {
+        saveAvailabilityToSupabase(newAvailability);
+      }
     }
   };
+
+
+
+  const handleTimeChange = (day: string, type: 'startTime' | 'endTime', value: string) => {
+    const existingIndex = availability.findIndex(a => a.day === day);
+
+    if (existingIndex > -1) {
+      const newAvailability = [...availability];
+      const updatedAvailability = { ...newAvailability[existingIndex], [type]: value };
+      
+      if (!updatedAvailability.startTime && !updatedAvailability.endTime) {
+        const filteredAvailability = newAvailability.filter((_, i) => i !== existingIndex);
+        setAvailability(filteredAvailability);
+        // Salvar automaticamente no Supabase quando houver alterações
+        if (teacherId) {
+          saveAvailabilityToSupabase(filteredAvailability);
+        }
+      } else {
+        newAvailability[existingIndex] = updatedAvailability;
+        setAvailability(newAvailability);
+        // Salvar automaticamente no Supabase quando houver alterações
+        if (teacherId) {
+          saveAvailabilityToSupabase(newAvailability);
+        }
+      }
+    } else if (value) {
+      const newAvailability = [...availability, { day, startTime: type === 'startTime' ? value : '', endTime: type === 'endTime' ? value : '' }];
+      setAvailability(newAvailability);
+      // Salvar automaticamente no Supabase quando houver alterações
+      if (teacherId) {
+        saveAvailabilityToSupabase(newAvailability);
+      }
+    }
+  };
+
+
 
   const copyDaySchedule = (fromDay: string, toDay: string) => {
     const template = availability.find(a => a.day === fromDay);
@@ -70,26 +129,15 @@ export function AvailabilityEditor({
       newBlockouts.push({ ...blockout, day: toDay });
     });
     setBlockouts(newBlockouts);
+    
+    // Salvar automaticamente no Supabase quando houver alterações
+    if (teacherId) {
+      saveAvailabilityToSupabase(newAvailability);
+      saveBlockoutsToSupabase(newBlockouts);
+    }
   };
 
-  const applyToSelected = () => {
-    const firstSelectedDay = selectedDays[0];
-    if (!firstSelectedDay) return;
 
-    const template = availability.find(a => a.day === firstSelectedDay);
-    if (!template) return;
-
-    const newAvailability = [...availability];
-    selectedDays.slice(1).forEach(day => {
-      const index = newAvailability.findIndex(a => a.day === day);
-      if (index > -1) {
-        newAvailability[index] = { ...newAvailability[index], ...template, day };
-      } else {
-        newAvailability.push({ ...template, day });
-      }
-    });
-    setAvailability(newAvailability);
-  };
 
   const isDayEnabled = (day: string) => {
     return availability.some(a => a.day === day && a.startTime && a.endTime);
@@ -109,18 +157,162 @@ export function AvailabilityEditor({
     };
   };
 
-  const addBlockout = () => {
-    setBlockouts([...blockouts, { title: '', day: '', startTime: '', endTime: '' }]);
+  const addBlockout = (day: string) => {
+    // Calcular a próxima data que corresponde ao dia da semana selecionado
+    const today = new Date();
+    const dayMap = {
+      'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 
+      'friday': 5, 'saturday': 6, 'sunday': 0
+    };
+    
+    const targetDayOfWeek = dayMap[day as keyof typeof dayMap];
+    const currentDayOfWeek = today.getDay();
+    
+    // Calcular quantos dias adicionar para chegar ao dia desejado
+    let daysToAdd = targetDayOfWeek - currentDayOfWeek;
+    if (daysToAdd < 0) {
+      daysToAdd += 7; // Se o dia já passou esta semana, pegar da próxima
+    }
+    if (daysToAdd === 0 && today.getHours() >= 18) {
+      daysToAdd = 7; // Se é hoje mas já é tarde, pegar da próxima semana
+    }
+    
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + daysToAdd);
+    const targetDateString = targetDate.toISOString().split('T')[0];
+    
+    const newBlockouts = [...blockouts, { 
+      title: 'Bloqueio',
+      day: day,
+      startDate: targetDateString,
+      endDate: targetDateString,
+      startTime: '12:00', 
+      endTime: '13:00',
+      is_recurring: false
+    }];
+    setBlockouts(newBlockouts);
+    
+    // Salvar automaticamente no Supabase quando houver alterações
+    if (teacherId) {
+      saveBlockoutsToSupabase(newBlockouts);
+    }
   };
 
   const removeBlockout = (index: number) => {
-    setBlockouts(blockouts.filter((_, i) => i !== index));
+    const newBlockouts = blockouts.filter((_, i) => i !== index);
+    setBlockouts(newBlockouts);
+    
+    // Salvar automaticamente no Supabase quando houver alterações
+    if (teacherId) {
+      saveBlockoutsToSupabase(newBlockouts);
+    }
   };
 
-  const handleBlockoutChange = (index: number, field: keyof Blockout, value: string) => {
+  const handleBlockoutChange = (index: number, field: keyof Blockout, value: string | boolean) => {
     const newBlockouts = [...blockouts];
     newBlockouts[index] = { ...newBlockouts[index], [field]: value };
     setBlockouts(newBlockouts);
+    
+    // Salvar automaticamente no Supabase quando houver alterações
+    if (teacherId) {
+      saveBlockoutsToSupabase(newBlockouts);
+    }
+  };
+  
+  const saveAvailabilityToSupabase = async (availability: Availability[]) => {
+    try {
+      if (!teacherId || !user?.id) {
+        console.error('teacherId ou user.id não disponível');
+        return;
+      }
+
+      // Converter a disponibilidade para o formato do Supabase
+      const supabaseAvailability = availability
+        .filter(a => a.startTime && a.endTime) // Só salvar horários válidos
+        .map(avail => ({
+          teacher_id: teacherId,
+          user_id: user.id,
+          day: avail.day,
+          start_time: avail.startTime,
+          end_time: avail.endTime,
+          is_available: true
+        }));
+      
+      // Primeiro deletar toda a disponibilidade existente para este professor
+      const { error: deleteError } = await supabase
+        .from('teacher_availability')
+        .delete()
+        .eq('teacher_id', teacherId);
+      
+      if (deleteError) throw deleteError;
+      
+      // Inserir a nova disponibilidade se houver dados
+      if (supabaseAvailability.length > 0) {
+        const { error: insertError } = await supabase
+          .from('teacher_availability')
+          .insert(supabaseAvailability);
+        
+        if (insertError) throw insertError;
+      }
+      
+      console.log('Disponibilidade salva com sucesso no Supabase');
+    } catch (error) {
+      console.error('Erro ao salvar disponibilidade:', error);
+    }
+  };
+
+  const saveBlockoutsToSupabase = async (blockouts: Blockout[]) => {
+    try {
+      if (!teacherId || !user?.id) {
+        console.error('teacherId ou user.id não disponível');
+        return;
+      }
+
+      // Converter os bloqueios para o formato do Supabase
+      const supabaseBlockouts = blockouts
+        .filter(b => b.startDate && b.endDate) // Só salvar bloqueios válidos
+        .map(blockout => {
+          // Criar as datas completas com horários
+          const startDateTime = blockout.startTime 
+            ? `${blockout.startDate}T${blockout.startTime}:00` 
+            : `${blockout.startDate}T00:00:00`;
+          const endDateTime = blockout.endTime 
+            ? `${blockout.endDate}T${blockout.endTime}:00` 
+            : `${blockout.endDate}T23:59:59`;
+            
+          return {
+            teacher_id: teacherId,
+            user_id: user.id,
+            start_date: startDateTime,
+            end_date: endDateTime,
+            start_time: blockout.startTime || null,
+            end_time: blockout.endTime || null,
+            is_recurring: Boolean(blockout.is_recurring),
+            reason: blockout.title || 'Bloqueio'
+          };
+        });
+      
+      // Primeiro deletar todos os bloqueios existentes para este professor
+      const { error: deleteError } = await supabase
+        .from('teacher_absences')
+        .delete()
+        .eq('teacher_id', teacherId);
+      
+      if (deleteError) throw deleteError;
+      
+      // Inserir os novos bloqueios se houver dados
+      if (supabaseBlockouts.length > 0) {
+        const { error: insertError } = await supabase
+          .from('teacher_absences')
+          .insert(supabaseBlockouts);
+        
+        if (insertError) throw insertError;
+      }
+      
+      console.log('Bloqueios salvos com sucesso no Supabase');
+    } catch (error) {
+      console.error('Erro ao salvar bloqueios:', error);
+    }
   };
 
   return (
@@ -130,103 +322,154 @@ export function AvailabilityEditor({
         <p className="text-sm text-muted-foreground">Defina os horários de trabalho do professor.</p>
       </div>
 
-      <div className="space-y-4 rounded-md border p-4">
-        <div className="flex items-center justify-end space-x-2">
-            <Button type="button" size="sm" onClick={applyToSelected} disabled={selectedDays.length < 2}>
-                Aplicar para dias selecionados
-            </Button>
-        </div>
-        <div className="grid gap-3">
-          {daysOfWeek.map(({ id, label }) => {
-            const currentAvailability = availability.find(a => a.day === id) || { startTime: '', endTime: '' };
-            return (
-              <div key={id} className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-3 items-center">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id={id} onCheckedChange={() => handleDayToggle(id)} checked={selectedDays.includes(id)} />
-                  <Label htmlFor={id} className="w-20 text-sm font-medium">{label}</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input 
-                    type="time" 
-                    value={currentAvailability.startTime} 
-                    onChange={e => handleTimeChange(id, 'startTime', e.target.value)}
-                    className="w-32"
+      <div className="border rounded-md">
+        {daysOfWeek.map(({ id, label }, dayIndex) => {
+          const currentAvailability = availability.find(a => a.day === id) || { startTime: '', endTime: '' };
+          const dayBlockouts = blockouts.filter(b => b.day === id);
+          const isEnabled = isDayEnabled(id);
+
+          return (
+            <div key={id} className={cn(
+              "grid grid-cols-[auto_1fr] items-start gap-x-6 gap-y-3 p-4 transition-all",
+              dayIndex > 0 && "border-t",
+              !isEnabled && "opacity-50"
+            )}>
+              {/* -- Day Label and Switch -- */}
+              <div className="flex items-center gap-4 pt-1.5">
+                <Switch
+                    id={`enable-${id}`}
+                    checked={isEnabled}
+                    onCheckedChange={() => handleDayToggle(id)}
+                    aria-label={`Ativar/desativar ${label}`}
+                    className="data-[state=checked]:bg-green-500" 
                   />
-                  <span className="text-muted-foreground text-sm px-2">até</span>
-                  <Input 
-                    type="time" 
-                    value={currentAvailability.endTime} 
-                    onChange={e => handleTimeChange(id, 'endTime', e.target.value)}
-                    className="w-32"
-                  />
-                </div>
+                <Label htmlFor={`enable-${id}`} className="font-bold w-24 cursor-pointer">{label}</Label>
               </div>
-            );
-          })}
-        </div>
-      </div>
 
-      <div>
-        <h4 className="text-lg font-medium">Bloqueios Recorrentes</h4>
-        <p className="text-sm text-muted-foreground">Adicione bloqueios como almoço ou pausas que se repetem semanalmente.</p>
-      </div>
-
-      <div className="space-y-4 rounded-md border p-4">
-        <div className="space-y-4">
-          {blockouts.map((blockout, index) => (
-            <div key={index} className="space-y-3 p-3 border rounded-md bg-muted/30">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-sm font-medium">Título do Bloqueio</Label>
-                  <Input 
-                    placeholder="Ex: Almoço, Pausa, Reunião" 
-                    value={blockout.title} 
-                    onChange={e => handleBlockoutChange(index, 'title', e.target.value)}
-                    className="mt-1"
+              {/* -- Time Inputs and Actions -- */}
+              <div className={cn("space-y-2")}>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    value={currentAvailability.startTime || ''}
+                    onChange={(e) => handleTimeChange(id, 'startTime', e.target.value)}
+                    className="w-32"
+                    disabled={!isEnabled}
                   />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Dia da Semana</Label>
-                  <select 
-                    value={blockout.day} 
-                    onChange={e => handleBlockoutChange(index, 'day', e.target.value)}
-                    className="mt-1 w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  <span className="text-muted-foreground text-sm">-</span>
+                  <Input
+                    type="time"
+                    value={currentAvailability.endTime || ''}
+                    onChange={(e) => handleTimeChange(id, 'endTime', e.target.value)}
+                    className="w-32"
+                    disabled={!isEnabled}
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" disabled={!isEnabled}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuLabel>Copiar para...</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {daysOfWeek
+                        .filter(day => day.id !== id)
+                        .map(day => (
+                          <DropdownMenuItem key={`copy-to-${day.id}`} onSelect={() => copyDaySchedule(id, day.id)}>
+                            {day.label}
+                          </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <div className="flex-grow" />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      addBlockout(id);
+                    }} 
+                    disabled={!isEnabled}
                   >
-                    <option value="">Selecione o dia</option>
-                    {daysOfWeek.map(day => (
-                      <option key={day.id} value={day.id}>{day.label}</option>
-                    ))}
-                  </select>
+                    <Plus className="h-4 w-4 mr-2" /> Bloqueio
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">Horário:</Label>
-                  <Input 
-                    type="time" 
-                    value={blockout.startTime} 
-                    onChange={e => handleBlockoutChange(index, 'startTime', e.target.value)}
-                    className="w-32"
-                  />
-                  <span className="text-muted-foreground text-sm px-2">até</span>
-                  <Input 
-                    type="time" 
-                    value={blockout.endTime} 
-                    onChange={e => handleBlockoutChange(index, 'endTime', e.target.value)}
-                    className="w-32"
-                  />
+
+              {/* -- Blockouts List -- */}
+              {isEnabled && dayBlockouts.length > 0 && (
+                <div className="col-start-2 space-y-2">
+                  {dayBlockouts.map((blockout, index) => {
+                      const originalIndex = blockouts.findIndex(b => b === blockout);
+                      return (
+                        <div key={originalIndex} className="p-3 rounded-md bg-background border space-y-3">
+                          {/* Primeira linha: Título e Switch de Recorrência */}
+                          <div className="flex items-center gap-3">
+                            <Input
+                              placeholder="Motivo do bloqueio"
+                              value={blockout.title || ''}
+                              onChange={(e) => handleBlockoutChange(originalIndex, 'title', e.target.value)}
+                              className="h-8 text-sm flex-grow"
+                            />
+                            <div className="flex items-center gap-2 min-w-[120px]">
+                              <Label htmlFor={`recurring-${originalIndex}`} className="cursor-pointer text-sm whitespace-nowrap">Recorrente</Label>
+                              <Switch
+                                id={`recurring-${originalIndex}`}
+                                checked={Boolean(blockout.is_recurring)}
+                                onCheckedChange={(checked) => handleBlockoutChange(originalIndex, 'is_recurring', checked)}
+                              />
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeBlockout(originalIndex)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          {/* Segunda linha: Datas */}
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm text-muted-foreground min-w-[60px]">Período:</Label>
+                            <Input 
+                              type="date"
+                              value={blockout.startDate || ''}
+                              onChange={(e) => handleBlockoutChange(originalIndex, 'startDate', e.target.value)}
+                              className="w-40 h-8 text-sm"
+                              disabled={Boolean(blockout.is_recurring)}
+                              style={blockout.is_recurring ? { opacity: 0.5, pointerEvents: 'none' } : {}}
+                            />
+                            <span className="text-muted-foreground text-sm">até</span>
+                            <Input 
+                              type="date"
+                              value={blockout.endDate || ''}
+                              onChange={(e) => handleBlockoutChange(originalIndex, 'endDate', e.target.value)}
+                              className="w-40 h-8 text-sm"
+                              disabled={Boolean(blockout.is_recurring)}
+                              style={blockout.is_recurring ? { opacity: 0.5, pointerEvents: 'none' } : {}}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Label className="text-sm text-muted-foreground min-w-[60px]">Horário:</Label>
+                            <Input
+                              type="time"
+                              value={blockout.startTime || ''}
+                              onChange={(e) => handleBlockoutChange(originalIndex, 'startTime', e.target.value)}
+                              className="w-32 h-8 text-sm"
+                            />
+                            <span className="text-muted-foreground text-sm">-</span>
+                            <Input
+                              type="time"
+                              value={blockout.endTime || ''}
+                              onChange={(e) => handleBlockoutChange(originalIndex, 'endTime', e.target.value)}
+                              className="w-32 h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
                 </div>
-                <Button type="button" variant="ghost" size="icon" onClick={() => removeBlockout(index)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+              )}
             </div>
-          ))}
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={addBlockout}>
-          <Plus className="h-4 w-4 mr-2" />
-          Adicionar Bloqueio Recorrente
-        </Button>
+          );
+        })}
       </div>
     </div>
   );
