@@ -27,6 +27,7 @@ export default function WeatherWidget() {
   const [weather, setWeather] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   const fetchWeatherByLocation = async (query: string) => {
     try {
@@ -51,7 +52,15 @@ export default function WeatherWidget() {
     }
   };
 
+  // Set client-side flag after hydration
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    // Only run on client-side after hydration
+    if (!isClient) return;
+    
     if (!WEATHER_API_KEY) {
       setError('API de clima não configurada');
       setLoading(false);
@@ -93,9 +102,10 @@ export default function WeatherWidget() {
     };
 
     detectLocation();
-  }, []);
+  }, [isClient]);
 
-  if (loading) {
+  // Show loading state during SSR and initial client load
+  if (!isClient || loading) {
     return (
       <TooltipProvider>
         <Tooltip>

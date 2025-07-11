@@ -94,9 +94,12 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!formData.name || !formData.email) {
-        // Basic validation, consider using a library like Zod for more complex scenarios
-        alert("Nome e Email são obrigatórios.");
+    if (!formData.name) {
+        alert("Nome é obrigatório.");
+        return;
+    }
+    if (!formData.email && !formData.phone) {
+        alert("Pelo menos Email ou Telefone deve ser preenchido.");
         return;
     }
     if (!user) {
@@ -165,13 +168,12 @@ export default function LeadDialog({ open, lead, onOpenChange, onSave, onClose: 
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  required
                   disabled={loading}
                 />
               </div>

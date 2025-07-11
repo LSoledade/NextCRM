@@ -68,7 +68,6 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
         students(id)
       `)
       .eq('id', leadId)
-      .eq('user_id', userId)
       .single();
     
     if (leadData) {
@@ -83,7 +82,6 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
       .from('tasks')
       .select('*')
       .eq('related_lead_id', leadId)
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     setTasks(tasksData || []);
     setLoading(false);
@@ -98,8 +96,50 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
     }
   };
 
+  // Função auxiliar para normalizar tags
+  const normalizeTags = (tags: any): string[] => {
+    if (!tags) return [];
+    
+    // Se já é um array, processar cada item
+    if (Array.isArray(tags)) {
+      return tags
+        .flatMap(tag => {
+          if (typeof tag === 'string') {
+            // Se a tag contém ponto e vírgula, dividir
+            if (tag.includes(';')) {
+              return tag.split(';').map(t => t.trim()).filter(Boolean);
+            }
+            // Se a tag contém vírgula (mas não ponto e vírgula), dividir também
+            if (tag.includes(',') && !tag.includes(';')) {
+              return tag.split(',').map(t => t.trim()).filter(Boolean);
+            }
+            return [tag.trim()];
+          }
+          return [];
+        })
+        .filter(Boolean);
+    }
+    
+    // Se é uma string, processar
+    if (typeof tags === 'string') {
+      // Primeiro tentar dividir por ponto e vírgula
+      if (tags.includes(';')) {
+        return tags.split(';').map(tag => tag.trim()).filter(Boolean);
+      }
+      // Se não tem ponto e vírgula, tentar vírgula
+      if (tags.includes(',')) {
+        return tags.split(',').map(tag => tag.trim()).filter(Boolean);
+      }
+      // Se não tem separadores, retornar como array único
+      return [tags.trim()].filter(Boolean);
+    }
+    
+    return [];
+  };
+
   useEffect(() => {
     if (lead) {
+      const normalizedTags = normalizeTags(lead.tags);
       setEditForm({
         name: lead.name,
         email: lead.email || '',
@@ -107,7 +147,7 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
         status: lead.status,
         source: lead.source || '',
         company: (lead as any).company || '',
-        tags: (lead.tags || []).join(';'),
+        tags: normalizedTags.join(';'),
         isStudent: (lead as any).is_student || false,
       });
     }
@@ -115,6 +155,17 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
 
   const handleEditSave = async () => {
     if (!user || !lead) return;
+    
+    // Validação: nome é obrigatório e pelo menos email ou telefone deve estar preenchido
+    if (!editForm.name.trim()) {
+      alert('Nome é obrigatório!');
+      return;
+    }
+    
+    if (!editForm.email.trim() && !editForm.phone.trim()) {
+      alert('Pelo menos email ou telefone deve estar preenchido!');
+      return;
+    }
     
     try {
       // Atualizar dados do lead
@@ -131,8 +182,7 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
       const { error } = await supabase
         .from('leads')
         .update(updated)
-        .eq('id', lead.id)
-        .eq('user_id', user.id);
+        .eq('id', lead.id);
         
       if (error) throw error;
       
@@ -153,8 +203,7 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
         const { error: studentError } = await supabase
           .from('students')
           .delete()
-          .eq('lead_id', lead.id)
-          .eq('user_id', user.id);
+          .eq('lead_id', lead.id);
         if (studentError) throw studentError;
       }
       
@@ -215,8 +264,8 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
         </div>
         <Tabs value={tab} onValueChange={setTab} className="w-full mt-4">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="info"><User className="w-4 h-4 mr-2" /> Informações</TabsTrigger>
-            <TabsTrigger value="tasks"><ClipboardList className="w-4 h-4 mr-2" /> Anotações</TabsTrigger>
+            <TabsTrigger value="info"><User className="h-4 w-4 mr-2" /> Informações</TabsTrigger>
+            <TabsTrigger value="tasks"><ClipboardList className="h-4 w-4 mr-2" /> Anotações</TabsTrigger>
           </TabsList>
           <TabsContent value="info" className="pt-6">
             <Card>
@@ -248,7 +297,7 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
                       <Label>Nome</Label>
                       <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} required />
                       <Label>Email</Label>
-                      <Input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} required />
+                      <Input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
                       <Label>Telefone</Label>
                       <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
                     </div>

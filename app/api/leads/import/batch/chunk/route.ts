@@ -94,22 +94,33 @@ export async function POST(request: NextRequest) {
 
       try {
         // Validação básica
-        if (!row.name || !row.email) {
+        if (!row.name) {
           chunkErrors.push({
             line: lineNumber,
-            error: 'Nome e email são obrigatórios'
+            error: 'Nome é obrigatório'
           });
           continue;
         }
 
-        // Validar email
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(row.email)) {
+        // Validar que pelo menos email ou telefone estejam preenchidos
+        if (!row.email && !row.phone) {
           chunkErrors.push({
             line: lineNumber,
-            error: 'Email inválido'
+            error: 'Pelo menos email ou telefone deve estar preenchido'
           });
           continue;
+        }
+
+        // Validar email se fornecido
+        if (row.email) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(row.email)) {
+            chunkErrors.push({
+              line: lineNumber,
+              error: 'Email inválido'
+            });
+            continue;
+          }
         }
 
         // Validar e processar company
@@ -157,7 +168,7 @@ export async function POST(request: NextRequest) {
         const leadData = {
           user_id: user.id,
           name: row.name?.trim(),
-          email: row.email?.trim().toLowerCase(),
+          email: row.email?.trim().toLowerCase() || null,
           phone: row.phone?.trim() || null,
           company: company,
           status: status,

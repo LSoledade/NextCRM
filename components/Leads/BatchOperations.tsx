@@ -15,7 +15,9 @@ import { cn } from '@/lib/utils';
 
 interface BatchOperationsProps {
   selectedCount: number;
+  totalCount: number;
   onClearSelection: () => void;
+  onSelectAll: () => void;
   onBatchStatusUpdate: (status: string) => void;
   onBatchSourceUpdate: (source: string) => void;
   onBatchDelete: () => void;
@@ -23,7 +25,9 @@ interface BatchOperationsProps {
 
 export default function BatchOperations({
   selectedCount,
+  totalCount,
   onClearSelection,
+  onSelectAll,
   onBatchStatusUpdate,
   onBatchSourceUpdate,
   onBatchDelete,
@@ -41,15 +45,26 @@ export default function BatchOperations({
         <span className="text-sm font-medium text-primary">
           {selectedCount === 1 ? 'lead selecionado' : 'leads selecionados'}
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClearSelection}
-          className="text-xs text-primary hover:bg-primary/10"
-        >
-          <X className="w-3.5 h-3.5 mr-1" />
-          Limpar
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onSelectAll}
+            className="text-xs text-primary hover:bg-primary/10"
+            disabled={selectedCount === totalCount}
+          >
+            Selecionar Todos ({totalCount})
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearSelection}
+            className="text-xs text-primary hover:bg-primary/10"
+          >
+            <X className="w-3.5 h-3.5 mr-1" />
+            Limpar
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

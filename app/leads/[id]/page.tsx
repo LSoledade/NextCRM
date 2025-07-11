@@ -337,8 +337,8 @@ export default function LeadDetailsPage() {
 
         <Tabs defaultValue="info" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="info"><User className="w-4 h-4 mr-2" /> Informações</TabsTrigger>
-            <TabsTrigger value="tasks"><ClipboardList className="w-4 h-4 mr-2" /> Tarefas</TabsTrigger>
+            <TabsTrigger value="info"><User className="h-4 w-4 mr-2" /> Informações</TabsTrigger>
+            <TabsTrigger value="tasks"><ClipboardList className="h-4 w-4 mr-2" /> Tarefas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="info" className="pt-6">

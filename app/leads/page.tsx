@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button'; // Added buttonVariants
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress'; // Or a custom spinner component
-import { PlusCircle, Download, Upload, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { PlusCircle, Download, Upload, AlertTriangle, CheckCircle, XCircle, Clock, Users, Tag } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +37,8 @@ import {
 import Papa from 'papaparse';
 import dynamic from 'next/dynamic';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import TagManagement from '@/components/Leads/TagManagement';
 
 const LeadSheet = dynamic(() => import('@/components/Leads/LeadSheet'), { ssr: false });
 
@@ -613,6 +615,12 @@ export default function LeadsPage() {
     }
   };
 
+  const handleSelectAll = () => {
+    const allLeadIds = leads.map(lead => lead.id);
+    setSelectedIds(allLeadIds);
+    toast({ title: `${allLeadIds.length} leads selecionados`, variant: 'default' });
+  };
+
   if (authLoading || leadsLoading) {
     return (
       <AppLayout>
@@ -652,64 +660,85 @@ export default function LeadsPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Actions Header */}
-        <div className="flex items-center justify-start gap-2">
-          <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
-            <Upload className="w-4 h-4 mr-2" />
-            Importar
-          </Button>
-          <Button variant="outline" size="sm" disabled={leads.length === 0} onClick={handleExportCSV}>
-            <Download className="w-4 h-4 mr-2" />
-            Exportar
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              setSelectedLead(null);
-              setDialogOpen(true);
-            }}
-          >
-            <PlusCircle className="w-4 h-4 mr-2" />
-            Novo Lead
-          </Button>
-        </div>
+        <Tabs defaultValue="leads" className="w-full">
+          <TabsList>
+            <TabsTrigger value="leads" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Leads
+            </TabsTrigger>
+            <TabsTrigger value="tags" className="flex items-center gap-2">
+              <Tag className="w-4 h-4" />
+              Gerenciar Tags
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="leads" className="space-y-6">
+            {/* Actions Header */}
+            <div className="flex items-center justify-start gap-2">
+              <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
+                <Upload className="w-4 h-4 mr-2" />
+                Importar
+              </Button>
+              <Button variant="outline" size="sm" disabled={leads.length === 0} onClick={handleExportCSV}>
+                <Download className="w-4 h-4 mr-2" />
+                Exportar
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSelectedLead(null);
+                  setDialogOpen(true);
+                }}
+              >
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Novo Lead
+              </Button>
+            </div>
 
-        {/* Filtros e pesquisa centralizados no FilterPanel */}
-        <FilterPanel
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          filters={filters}
-          onFiltersChange={setFilters}
-          availableTags={availableTags}
-          showCompanyFilter
-          showSourceFilter
-          showStatusFilter
-          showCampaignFilter
-          showTagFilter
-          showDateFilter
-        />
+            {/* Filtros e pesquisa centralizados no FilterPanel */}
+            <FilterPanel
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              filters={filters}
+              onFiltersChange={setFilters}
+              availableTags={availableTags}
+              showCompanyFilter
+              showSourceFilter
+              showStatusFilter
+              showCampaignFilter
+              showTagFilter
+              showDateFilter
+            />
 
-        {/* Batch Operations */}
-        {selectedIds.length > 0 && (
-          <BatchOperations
-            selectedCount={selectedIds.length}
-            onClearSelection={() => setSelectedIds([])}
-            onBatchStatusUpdate={handleBatchStatusUpdate}
-            onBatchSourceUpdate={handleBatchSourceUpdate}
-            onBatchDelete={() => setBatchDeleteDialogOpen(true)}
-          />
-        )}
+            {/* Batch Operations */}
+            {selectedIds.length > 0 && (
+              <BatchOperations
+                selectedCount={selectedIds.length}
+                totalCount={leads.length}
+                onClearSelection={() => setSelectedIds([])}
+                onSelectAll={handleSelectAll}
+                onBatchStatusUpdate={handleBatchStatusUpdate}
+                onBatchSourceUpdate={handleBatchSourceUpdate}
+                onBatchDelete={() => setBatchDeleteDialogOpen(true)}
+              />
+            )}
 
-        {/* Table */}
-        <LeadTable
-          leads={leads}
-          loading={false}
-          selectedIds={selectedIds}
-          onSelectionChange={setSelectedIds}
-          onEdit={handleEditLead}
-          onDelete={handleDeleteDialogOpen}
-          onView={handleViewLead}
-        />
+            {/* Table */}
+            <LeadTable
+              leads={leads}
+              loading={false}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              onEdit={handleEditLead}
+              onDelete={handleDeleteDialogOpen}
+              onView={handleViewLead}
+            />
+          </TabsContent>
+          
+          <TabsContent value="tags">
+            <TagManagement />
+          </TabsContent>
+        </Tabs>
         <LeadSheet open={sheetOpen} leadId={selectedLeadId} onOpenChange={(open) => {
           setSheetOpen(open);
           if (!open) setSelectedLeadId(null);

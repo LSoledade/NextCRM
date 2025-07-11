@@ -26,6 +26,46 @@ import { Database } from '@/types/database';
 import { getCompanyBadgeStyles, getStudentBadgeStyles, type Company } from '@/lib/company-utils';
 import { cn } from '@/lib/utils';
 
+// Função para formatar telefone brasileiro
+const formatPhone = (phone: string | null | undefined): string => {
+  if (!phone) return '';
+  
+  // Remove todos os caracteres não numéricos
+  const cleaned = phone.replace(/\D/g, '');
+  
+  // Se tem 13 dígitos e começa com 55 (código do Brasil)
+  if (cleaned.length === 13 && cleaned.startsWith('55')) {
+    const number = cleaned.substring(2); // Remove o 55
+    return `(${number.substring(0, 2)}) ${number.substring(2, 7)}-${number.substring(7)}`;
+  }
+  
+  // Se tem 11 dígitos (celular brasileiro)
+  if (cleaned.length === 11) {
+    return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 7)}-${cleaned.substring(7)}`;
+  }
+  
+  // Se tem 10 dígitos (telefone fixo brasileiro)
+  if (cleaned.length === 10) {
+    return `(${cleaned.substring(0, 2)}) ${cleaned.substring(2, 6)}-${cleaned.substring(6)}`;
+  }
+  
+  // Retorna o telefone original se não conseguir formatar
+  return phone;
+};
+
+// Função para verificar se o nome é um telefone e retornar nome apropriado
+const getDisplayName = (name: string | null | undefined): string => {
+  if (!name) return 'Sem nome';
+  
+  // Verifica se o nome é apenas números (possivelmente um telefone)
+  const cleaned = name.replace(/\D/g, '');
+  if (cleaned.length >= 10 && cleaned === name.replace(/[\s\-\(\)]/g, '')) {
+    return 'Contato WhatsApp';
+  }
+  
+  return name;
+};
+
 type Lead = Database['public']['Tables']['leads']['Row'] & {
   is_student?: boolean;
 };
@@ -317,7 +357,7 @@ export default function LeadTable({
                   {visibleColumns.includes('name') && (
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <span>{lead.name}</span>
+                        <span>{getDisplayName(lead.name)}</span>
                         {lead.is_student && (
                           <Badge 
                             variant="outline" 
@@ -342,7 +382,7 @@ export default function LeadTable({
                       {lead.phone ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <PhoneCall className="w-4 h-4" />
-                          {lead.phone}
+                          {formatPhone(lead.phone)}
                         </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">Não informado</span>

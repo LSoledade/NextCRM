@@ -63,23 +63,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Initialize sidebar state from localStorage immediately
-  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('sidebar-expanded');
-      return saved !== null ? JSON.parse(saved) : true;
-    }
-    return true;
-  });
+  // Initialize sidebar state - start with default to avoid hydration mismatch
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
 
-  // Initialize right panel visibility state from localStorage
-  const [rightPanelVisible, setRightPanelVisible] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('right-panel-visible');
-      return saved !== null ? JSON.parse(saved) : true; // Default visible
-    }
-    return true;
-  });
+  // Initialize right panel visibility state - start with default to avoid hydration mismatch
+  const [rightPanelVisible, setRightPanelVisible] = useState(true);
   
   const { user, signOut } = useAuth();
   const router = useRouter();
@@ -127,8 +115,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return 'CRM Personal Trainer';
   }, [pathname]);
 
-  // Initialize component
+  // Initialize component and load saved states from localStorage
   useEffect(() => {
+    // Load sidebar state from localStorage after hydration
+    const savedSidebarState = localStorage.getItem('sidebar-expanded');
+    if (savedSidebarState !== null) {
+      setSidebarExpanded(JSON.parse(savedSidebarState));
+    }
+    
+    // Load right panel state from localStorage after hydration
+    const savedRightPanelState = localStorage.getItem('right-panel-visible');
+    if (savedRightPanelState !== null) {
+      setRightPanelVisible(JSON.parse(savedRightPanelState));
+    }
+    
     setIsInitialized(true);
   }, []);
 
@@ -177,26 +177,33 @@ export default function AppLayout({ children }: AppLayoutProps) {
     localStorage.setItem('right-panel-visible', JSON.stringify(visible));
   }, []);
 
-  // Animated Toggle Icon Component
-  const AnimatedToggleIcon = ({ isExpanded }: { isExpanded: boolean }) => (
-    <div className="relative h-5 w-5 transition-all duration-300 ease-out">
-      {/* Menu Icon - visible when sidebar is expanded */}
-      <div className={cn(
-        "absolute inset-0 transition-all duration-300 ease-out",
-        isExpanded ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-180 scale-75"
-      )}>
-        <MenuIcon className="h-5 w-5" />
+  // Animated Toggle Icon Component - fixed for hydration
+  const AnimatedToggleIcon = ({ isExpanded }: { isExpanded: boolean }) => {
+    // Prevent hydration mismatch by not rendering until initialized
+    if (!isInitialized) {
+      return <MenuIcon className="h-5 w-5" />;
+    }
+    
+    return (
+      <div className="relative h-5 w-5 transition-all duration-300 ease-out">
+        {/* Menu Icon - visible when sidebar is expanded */}
+        <div className={cn(
+          "absolute inset-0 transition-all duration-300 ease-out",
+          isExpanded ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-180 scale-75"
+        )}>
+          <MenuIcon className="h-5 w-5" />
+        </div>
+        
+        {/* Arrow Right Icon - visible when sidebar is collapsed */}
+        <div className={cn(
+          "absolute inset-0 transition-all duration-300 ease-out",
+          !isExpanded ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-180 scale-75"
+        )}>
+          <ChevronRight className="h-5 w-5" />
+        </div>
       </div>
-      
-      {/* Arrow Right Icon - visible when sidebar is collapsed */}
-      <div className={cn(
-        "absolute inset-0 transition-all duration-300 ease-out",
-        !isExpanded ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-180 scale-75"
-      )}>
-        <ChevronRight className="h-5 w-5" />
-      </div>
-    </div>
-  );
+    );
+  };
 
   const NavigationItems = ({ collapsed = false }: { collapsed?: boolean }) => (
     <>
@@ -426,7 +433,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   onClick={() => handleRightPanelToggle(!rightPanelVisible)}
                   className="text-muted-foreground hover:text-foreground rounded-full h-8 w-8 transition-all duration-200 hover:bg-accent/50"
                 >
-                  {rightPanelVisible ? (
+                  {/* Prevent hydration mismatch by showing default icon until initialized */}
+                  {!isInitialized ? (
+                    <MenuIcon className="h-4 w-4" />
+                  ) : rightPanelVisible ? (
                     <MenuIcon className="h-4 w-4" />
                   ) : (
                     <ChevronLeft className="h-4 w-4" />

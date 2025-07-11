@@ -46,74 +46,120 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Email or phone number is required.' }, { status: 400 });
   }
 
+  // Validar company - só aceita valores específicos
+  const validCompanies = ['Favale', 'Pink', 'Favale&Pink'];
+  const companyFromPayload = additional_attributes?.company_name || custom_attributes?.company_name;
+  const validatedCompany = validCompanies.includes(companyFromPayload) ? companyFromPayload : 'Favale';
+  
+  // Melhorar o nome se for um número de telefone
+  let displayName = name;
+  if (name && /^\+?[\d\s\-\(\)]+$/.test(name.trim())) {
+    displayName = 'Contato WhatsApp';
+  }
+
   try {
-    // 4. Check if lead exists
-    let existingLead = null;
     
-    if (email || phone_number) {
-      let query = supabaseAdmin.from('leads').select('id, name');
-      
-      if (email && phone_number) {
-        query = query.or(`email.eq.${email},phone.eq.${phone_number}`);
-      } else if (email) {
-        query = query.eq('email', email);
-      } else if (phone_number) {
-        query = query.eq('phone', phone_number);
-      }
-      
-      const { data: leadData, error: queryError } = await query.maybeSingle();
+    const leadData = {
+      name: displayName,
+      email: email || null,
+      phone: phone_number || null,
+      source: 'Chatwoot',
+      tags: custom_attributes?.tags || [],
+      company: validatedCompany,
+      user_id: process.env.DEFAULT_USER_ID_FOR_LEADS || null,
+      status: 'New'
+    };
+    
+    console.log('💾 Lead data to save:', leadData);
+
+    // 4. Usar UPSERT com ON CONFLICT para prevenir duplicações
+    // Prioridade: telefone > email
+    let result: { data: any; wasUpdate: boolean } | undefined;
+    
+    if (phone_number) {
+      // Se tem telefone, usar UPSERT baseado no telefone
+      const { data, error } = await supabaseAdmin
+        .from('leads')
+        .upsert(
+          leadData,
+          { 
+            onConflict: 'phone',
+            ignoreDuplicates: false
+          }
+        )
+        .select()
+        .single();
         
-      if (queryError) {
-        console.error('Error querying for existing lead:', queryError);
-        throw queryError;
+      if (error) throw error;
+      result = { data, wasUpdate: true };
+    } else if (email) {
+      // Se só tem email, verificar se já existe
+      const { data: existingLead } = await supabaseAdmin
+        .from('leads')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+        
+      if (existingLead) {
+        // Atualizar lead existente
+        const { data, error } = await supabaseAdmin
+          .from('leads')
+          .update(leadData)
+          .eq('id', existingLead.id)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = { data, wasUpdate: true };
+      } else {
+        // Criar novo lead
+        const { data, error } = await supabaseAdmin
+          .from('leads')
+          .insert([leadData])
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = { data, wasUpdate: false };
       }
-      
-      existingLead = leadData;
-      console.log('🔍 Existing lead found:', existingLead);
-     }
-
-    // Validar company - só aceita valores específicos
-     const validCompanies = ['Favale', 'Pink', 'Favale&Pink'];
-     const companyFromPayload = additional_attributes?.company_name || custom_attributes?.company_name;
-     const validatedCompany = validCompanies.includes(companyFromPayload) ? companyFromPayload : 'Favale';
-     
-     const leadData = {
-        name: name,
-        email: email || null,
-        phone: phone_number || null,
-        source: 'Chatwoot',
-        tags: custom_attributes?.tags || [],
-        company: validatedCompany,
-        user_id: process.env.DEFAULT_USER_ID_FOR_LEADS || null,
-      };
-     
-     console.log('💾 Lead data to save:', leadData);
-
-    // 5. Upsert logic
-    if (existingLead) {
-      // Update existing lead
-      const { data, error } = await supabaseAdmin
-        .from('leads')
-        .update(leadData)
-        .eq('id', existingLead.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return NextResponse.json({ message: 'Lead updated successfully', lead: data });
-    } else {
-      // Create new lead
-      const { data, error } = await supabaseAdmin
-        .from('leads')
-        .insert([{ ...leadData, status: 'New' }])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return NextResponse.json({ message: 'Lead created successfully', lead: data }, { status: 201 });
     }
+    
+    if (!result) {
+      throw new Error('No email or phone number provided');
+    }
+    
+    const message = result.wasUpdate ? 'Lead updated successfully' : 'Lead created successfully';
+    const statusCode = result.wasUpdate ? 200 : 201;
+    
+    return NextResponse.json({ message, lead: result.data }, { status: statusCode });
+    
   } catch (error: any) {
     console.error('Error processing webhook:', error);
+    
+    // Se for erro de duplicação, tentar atualizar o lead existente
+    if (error.code === '23505' && phone_number) {
+      try {
+        console.log('🔄 Duplicate detected, attempting update...');
+        const { data, error: updateError } = await supabaseAdmin
+          .from('leads')
+          .update({
+            name: displayName,
+            email: email || null,
+            tags: custom_attributes?.tags || [],
+            company: validatedCompany,
+            updated_at: new Date().toISOString()
+          })
+          .eq('phone', phone_number)
+          .select()
+          .single();
+          
+        if (updateError) throw updateError;
+        return NextResponse.json({ message: 'Lead updated successfully (duplicate resolved)', lead: data });
+      } catch (fallbackError: any) {
+        console.error('Fallback update failed:', fallbackError);
+      }
+    }
+    
     return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
   }
 }

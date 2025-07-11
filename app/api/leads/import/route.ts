@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       
       return {
         name: row.name?.trim(),
-        email: row.email?.trim(),
+        email: row.email?.trim() || null,
         phone: row.phone?.trim() || null,
         company: company,
         status: row.status || 'New',
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         is_student: isStudent,
         tags: row.tags ? row.tags.split(';').map((t: string) => t.trim()).filter(Boolean) : [],
       };
-    }).filter(l => l.name && l.email);
+    }).filter(l => l.name && (l.email || l.phone)); // Nome obrigatório + pelo menos email ou telefone
     if (leads.length === 0) {
       return NextResponse.json({ error: 'Nenhum lead válido encontrado.' }, { status: 400 });
     }

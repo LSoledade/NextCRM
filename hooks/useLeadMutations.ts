@@ -176,19 +176,34 @@ export const useBatchDeleteLeadsMutation = (userId: string | undefined, userRole
     mutationFn: async (ids: string[]) => {
       if (!userId) throw new Error('User ID is required to batch delete leads.');
       if (ids.length === 0) return null;
-      let query = supabase
-        .from('leads')
-        .delete()
-        .in('id', ids);
       
-      // Se o usuário não for admin, só pode deletar seus próprios leads
-      if (userRole !== 'admin') {
-        query = query.eq('user_id', userId);
+      // Processar em lotes de 100 IDs para evitar erro 414 Request-URI Too Large
+      const BATCH_SIZE = 100;
+      const batches = [];
+      
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        batches.push(ids.slice(i, i + BATCH_SIZE));
       }
       
-      const { error } = await query;
-      if (error) throw error;
-      return ids;
+      // Processar cada lote sequencialmente
+      const deletedIds = [];
+      for (const batch of batches) {
+        let query = supabase
+          .from('leads')
+          .delete()
+          .in('id', batch);
+        
+        // Se o usuário não for admin, só pode deletar seus próprios leads
+        if (userRole !== 'admin') {
+          query = query.eq('user_id', userId);
+        }
+        
+        const { error } = await query;
+        if (error) throw error;
+        deletedIds.push(...batch);
+      }
+      
+      return deletedIds;
     },
     onSuccess: () => {
       invalidateLeadsQueries(queryClient, userId);
