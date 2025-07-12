@@ -72,26 +72,46 @@ export async function POST(request: Request) {
     
     console.log('💾 Lead data to save:', leadData);
 
-    // 4. Usar UPSERT com ON CONFLICT para prevenir duplicações
+    // 4. Verificar se lead já existe e atualizar ou criar novo
     // Prioridade: telefone > email
     let result: { data: any; wasUpdate: boolean } | undefined;
     
     if (phone_number) {
-      // Se tem telefone, usar UPSERT baseado no telefone
-      const { data, error } = await supabaseAdmin
+      // Se tem telefone, verificar se já existe e atualizar ou criar
+      const { data: existingLead } = await supabaseAdmin
         .from('leads')
-        .upsert(
-          leadData,
-          { 
-            onConflict: 'phone',
-            ignoreDuplicates: false
-          }
-        )
-        .select()
-        .single();
+        .select('id')
+        .eq('phone', phone_number)
+        .maybeSingle();
         
-      if (error) throw error;
-      result = { data, wasUpdate: true };
+      if (existingLead) {
+        // Atualizar lead existente
+        const { data, error } = await supabaseAdmin
+          .from('leads')
+          .update({
+            name: displayName,
+            email: email || null,
+            tags: custom_attributes?.tags || [],
+            company: validatedCompany,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingLead.id)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = { data, wasUpdate: true };
+      } else {
+        // Criar novo lead
+        const { data, error } = await supabaseAdmin
+          .from('leads')
+          .insert([leadData])
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = { data, wasUpdate: false };
+      }
     } else if (email) {
       // Se só tem email, verificar se já existe
       const { data: existingLead } = await supabaseAdmin
@@ -104,7 +124,13 @@ export async function POST(request: Request) {
         // Atualizar lead existente
         const { data, error } = await supabaseAdmin
           .from('leads')
-          .update(leadData)
+          .update({
+            name: displayName,
+            phone: phone_number || null,
+            tags: custom_attributes?.tags || [],
+            company: validatedCompany,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', existingLead.id)
           .select()
           .single();
@@ -135,31 +161,6 @@ export async function POST(request: Request) {
     
   } catch (error: any) {
     console.error('Error processing webhook:', error);
-    
-    // Se for erro de duplicação, tentar atualizar o lead existente
-    if (error.code === '23505' && phone_number) {
-      try {
-        console.log('🔄 Duplicate detected, attempting update...');
-        const { data, error: updateError } = await supabaseAdmin
-          .from('leads')
-          .update({
-            name: displayName,
-            email: email || null,
-            tags: custom_attributes?.tags || [],
-            company: validatedCompany,
-            updated_at: new Date().toISOString()
-          })
-          .eq('phone', phone_number)
-          .select()
-          .single();
-          
-        if (updateError) throw updateError;
-        return NextResponse.json({ message: 'Lead updated successfully (duplicate resolved)', lead: data });
-      } catch (fallbackError: any) {
-        console.error('Fallback update failed:', fallbackError);
-      }
-    }
-    
     return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
   }
 }
