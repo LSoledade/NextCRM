@@ -2,6 +2,18 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/utils/supabase/admin';
 import crypto from 'crypto';
 
+// Handle CORS preflight requests
+export async function OPTIONS(request: Request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, x-chatwoot-hmac-sha256',
+    },
+  });
+}
+
 export async function POST(request: Request) {
 
   // 1. Verify HMAC Signature (optional)
@@ -16,12 +28,26 @@ export async function POST(request: Request) {
 
     if (digest !== signature) {
       console.error('Invalid HMAC signature');
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid signature' }, { 
+        status: 401,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, x-chatwoot-hmac-sha256',
+        }
+      });
     }
     console.log('✅ HMAC signature validated');
   } else if (chatwootWebhookSecret && !signature) {
     console.error('HMAC secret configured but no signature provided');
-    return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+    return NextResponse.json({ error: 'Missing signature' }, { 
+      status: 401,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, x-chatwoot-hmac-sha256',
+      }
+    });
   } else {
     console.log('⚠️ HMAC validation skipped (no secret configured)');
   }
@@ -39,11 +65,25 @@ export async function POST(request: Request) {
 
   // 3. Process only contact_created and contact_updated events
   if (event !== 'contact_created' && event !== 'contact_updated') {
-    return NextResponse.json({ message: `Event ${event} not processed.` }, { status: 200 });
+    return NextResponse.json({ message: `Event ${event} not processed.` }, { 
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, x-chatwoot-hmac-sha256',
+      }
+    });
   }
 
   if (!email && !phone_number) {
-    return NextResponse.json({ error: 'Email or phone number is required.' }, { status: 400 });
+    return NextResponse.json({ error: 'Email or phone number is required.' }, { 
+      status: 400,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, x-chatwoot-hmac-sha256',
+      }
+    });
   }
 
   // Validar company - só aceita valores específicos
@@ -157,10 +197,24 @@ export async function POST(request: Request) {
     const message = result.wasUpdate ? 'Lead updated successfully' : 'Lead created successfully';
     const statusCode = result.wasUpdate ? 200 : 201;
     
-    return NextResponse.json({ message, lead: result.data }, { status: statusCode });
+    return NextResponse.json({ message, lead: result.data }, { 
+      status: statusCode,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, x-chatwoot-hmac-sha256',
+      }
+    });
     
   } catch (error: any) {
     console.error('Error processing webhook:', error);
-    return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { 
+      status: 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, x-chatwoot-hmac-sha256',
+      }
+    });
   }
 }

@@ -9,7 +9,11 @@ export async function middleware(request: NextRequest) {
     // Get the pathname
     const pathname = request.nextUrl.pathname
 
-    // Skip auth check for public routes
+    // Skip auth check for API routes and public routes
+    if (pathname.startsWith('/api/')) {
+      return response
+    }
+    
     const publicRoutes = ['/login', '/auth/confirm', '/auth/signout', '/auth/auth-code-error']
     if (publicRoutes.includes(pathname)) {
       return response
@@ -67,8 +71,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - api routes (to avoid interfering with webhooks)
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
