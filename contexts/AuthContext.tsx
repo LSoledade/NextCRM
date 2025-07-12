@@ -28,9 +28,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
         if (sessionError) {
           console.error('Erro ao buscar sessão inicial:', sessionError);
-          // Consider how to handle this error, perhaps set an error state
+          
+          // Se o erro for de refresh token, tenta fazer logout limpo
+          if (sessionError.message?.includes('refresh_token_not_found') || 
+              sessionError.message?.includes('Invalid Refresh Token')) {
+            console.log('Token de refresh inválido, fazendo logout...');
+            await supabase.auth.signOut();
+            setUser(null);
+            setLoading(false);
+            return;
+          }
         }
         
         const authUser = session?.user ?? null;
@@ -41,8 +51,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setUser(null);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Falha ao processar sessão inicial:', error);
+        
+        // Se for erro de refresh token, limpa a sessão
+        if (error?.message?.includes('refresh_token_not_found') || 
+            error?.message?.includes('Invalid Refresh Token')) {
+          console.log('Limpando sessão devido a token inválido...');
+          await supabase.auth.signOut();
+        }
+        
         setUser(null);
       } finally {
         setLoading(false);
@@ -52,15 +70,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     getInitialSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setLoading(true);
-        const authUser = session?.user ?? null;
-        if (authUser) {
-          setUser({ ...authUser, role: authUser.user_metadata?.role as UserRole || 'professor' });
-        } else {
-          setUser(null);
+        
+        try {
+          if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+            const authUser = session?.user ?? null;
+            if (authUser) {
+              setUser({ ...authUser, role: authUser.user_metadata?.role as UserRole || 'professor' });
+            } else {
+              setUser(null);
+            }
+          } else if (event === 'SIGNED_IN') {
+            const authUser = session?.user ?? null;
+            if (authUser) {
+              setUser({ ...authUser, role: authUser.user_metadata?.role as UserRole || 'professor' });
+            }
+          } else {
+            const authUser = session?.user ?? null;
+            if (authUser) {
+              setUser({ ...authUser, role: authUser.user_metadata?.role as UserRole || 'professor' });
+            } else {
+              setUser(null);
+            }
+          }
+        } catch (error: any) {
+          console.error('Erro no listener de auth:', error);
+          if (error?.message?.includes('refresh_token_not_found') || 
+              error?.message?.includes('Invalid Refresh Token')) {
+            await supabase.auth.signOut();
+            setUser(null);
+          }
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 

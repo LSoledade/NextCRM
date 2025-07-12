@@ -6,15 +6,52 @@ export async function middleware(request: NextRequest) {
     // Create a Supabase client configured to use cookies
     const { supabase, response } = createClient(request)
 
-    // Refresh session if expired - required for Server Components
-    // https://supabase.com/docs/guides/auth/server-side/nextjs
-    await supabase.auth.getUser()
+    // Get the pathname
+    const pathname = request.nextUrl.pathname
+
+    // Skip auth check for public routes
+    const publicRoutes = ['/login', '/auth/confirm', '/auth/signout', '/auth/auth-code-error']
+    if (publicRoutes.includes(pathname)) {
+      return response
+    }
+
+    // Try to get user session
+    const { data: { user }, error } = await supabase.auth.getUser()
+
+    // If there's an auth error or no user, redirect to login
+    if (error || !user) {
+      // Clear any existing auth cookies
+      const loginUrl = new URL('/login', request.url)
+      const redirectResponse = NextResponse.redirect(loginUrl)
+      
+      // Clear auth-related cookies
+      const cookiesToClear = [
+        'sb-access-token',
+        'sb-refresh-token',
+        'supabase-auth-token',
+        'supabase.auth.token'
+      ]
+      
+      cookiesToClear.forEach(cookieName => {
+        redirectResponse.cookies.delete(cookieName)
+      })
+      
+      return redirectResponse
+    }
 
     return response
   } catch (e) {
-    // If you are here, a Supabase client could not be created!
-    // This is likely because you have not set up environment variables.
-    // Check out http://localhost:3000 for Next Steps.
+    console.error('Middleware error:', e)
+    
+    // If we're not already on a public route, redirect to login
+    const pathname = request.nextUrl.pathname
+    const publicRoutes = ['/login', '/auth/confirm', '/auth/signout', '/auth/auth-code-error']
+    
+    if (!publicRoutes.includes(pathname)) {
+      const loginUrl = new URL('/login', request.url)
+      return NextResponse.redirect(loginUrl)
+    }
+    
     return NextResponse.next({
       request: {
         headers: request.headers,

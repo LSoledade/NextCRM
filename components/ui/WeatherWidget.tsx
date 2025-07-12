@@ -31,9 +31,52 @@ export default function WeatherWidget() {
 
   const fetchWeatherByLocation = async (query: string) => {
     try {
-      const res = await fetch(`https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${query}&lang=pt`);
+      const res = await fetch(`https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(query)}&lang=pt`);
       if (!res.ok) throw new Error('Falha na requisição');
       const data = await res.json();
+      
+      // Debug: log do nome original retornado pela API
+      console.log('Nome original da API:', data.location?.name, 'Região:', data.location?.region);
+      
+      // Corrigir nomes de cidades com caracteres especiais
+      if (data.location) {
+        // Se a localização está próxima de São Paulo, corrigir o nome
+        const lat = data.location.lat;
+        const lon = data.location.lon;
+        
+        // Verificar se está na região metropolitana de São Paulo
+        if (lat >= -24.0 && lat <= -23.0 && lon >= -47.0 && lon <= -46.0) {
+          data.location.name = 'São Paulo';
+          data.location.region = 'São Paulo';
+          data.location.country = 'Brasil';
+        }
+        
+        // Outras correções comuns para cidades brasileiras
+        const corrections: { [key: string]: { name: string; region?: string; country?: string } } = {
+          'Sao Paulo': { name: 'São Paulo', region: 'São Paulo', country: 'Brasil' },
+          'San Paulo': { name: 'São Paulo', region: 'São Paulo', country: 'Brasil' },
+          'Brasilia': { name: 'Brasília', region: 'Distrito Federal', country: 'Brasil' },
+          'Rio de Janeiro': { name: 'Rio de Janeiro', region: 'Rio de Janeiro', country: 'Brasil' },
+          'Belo Horizonte': { name: 'Belo Horizonte', region: 'Minas Gerais', country: 'Brasil' },
+          'Curitiba': { name: 'Curitiba', region: 'Paraná', country: 'Brasil' },
+          'Porto Alegre': { name: 'Porto Alegre', region: 'Rio Grande do Sul', country: 'Brasil' },
+          'Salvador': { name: 'Salvador', region: 'Bahia', country: 'Brasil' },
+          'Fortaleza': { name: 'Fortaleza', region: 'Ceará', country: 'Brasil' },
+          'Recife': { name: 'Recife', region: 'Pernambuco', country: 'Brasil' },
+          'Manaus': { name: 'Manaus', region: 'Amazonas', country: 'Brasil' }
+        };
+        
+        if (corrections[data.location.name]) {
+          const correction = corrections[data.location.name];
+          data.location.name = correction.name;
+          if (correction.region) data.location.region = correction.region;
+          if (correction.country) data.location.country = correction.country;
+        }
+        
+        // Debug: log do nome após correções
+        console.log('Nome após correções:', data.location?.name, 'Região:', data.location?.region);
+      }
+      
       setWeather(data);
       setError(null);
     } catch (e) {
@@ -46,9 +89,9 @@ export default function WeatherWidget() {
       const res = await fetch('https://ipapi.co/json/');
       if (!res.ok) throw new Error('Falha na geolocalização por IP');
       const data = await res.json();
-      return `${data.city}, ${data.country_name}`;
+      return `${data.latitude},${data.longitude}`;
     } catch (e) {
-      return 'São Paulo, Brazil'; // fallback
+      return '-23.5505,-46.6333'; // São Paulo coordinates fallback
     }
   };
 

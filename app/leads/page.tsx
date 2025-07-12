@@ -34,13 +34,17 @@ import {
   useBatchUpdateLeadsSourceMutation,
   useBatchDeleteLeadsMutation,
 } from '@/hooks/useLeadMutations'; // Importar os novos hooks
+import { useLeadsPagination, useLeadsStats } from '@/hooks/useLeadsPagination';
 import Papa from 'papaparse';
 import dynamic from 'next/dynamic';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import TagManagement from '@/components/Leads/TagManagement';
+import KanbanView from '@/components/Leads/KanbanView';
 
 const LeadSheet = dynamic(() => import('@/components/Leads/LeadSheet'), { ssr: false });
+const KanbanViewDynamic = dynamic(() => import('@/components/Leads/KanbanView'), { ssr: false });
 
 type Lead = Database['public']['Tables']['leads']['Row'] & {
   is_student?: boolean;
@@ -73,6 +77,12 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   // Debounce para searchTerm
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  
+  // Pagination and sorting states
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -93,15 +103,40 @@ export default function LeadsPage() {
     tag: '',
     dateRange: '',
   });
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+    setSelectedIds([]);
+  }, [filters.source, filters.status, filters.campaign, filters.company, filters.tag, filters.startDate, filters.endDate, debouncedSearchTerm]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+
+  const handleKanbanUpdate = (leadId: string, newStatus: Lead['status']) => {
+    const leadToMove = leads.find(l => l.id === leadId);
+    if (leadToMove && leadToMove.status !== newStatus) {
+      updateLeadMutation.mutate(
+        { id: leadId, status: newStatus },
+        {
+          onSuccess: () => {
+            toast({ title: 'Lead atualizado com sucesso!', variant: 'default' });
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
+          },
+          onError: (error) => {
+            toast({ title: 'Erro ao atualizar lead', description: error.message, variant: 'destructive' });
+          },
+        }
+      );
+    }
+  };
+
 
   // Função para buscar leads do Supabase com base nos filtros
   const fetchLeads = async () => {
     if (!user) return [];
     
-    // Buscar todos os leads com informação de estudante usando LEFT JOIN
-    let query = supabase
+    // Construir query base
+    let baseQuery = supabase
       .from('leads')
       .select(`
         *,
@@ -111,46 +146,70 @@ export default function LeadsPage() {
 
     // Se o usuário não for admin, filtrar apenas seus leads
     if (user.role !== 'admin') {
-      query = query.eq('user_id', user.id);
+      baseQuery = baseQuery.eq('user_id', user.id);
     }
 
-    if (filters.source) query = query.eq('source', filters.source);
-    if (filters.status) query = query.eq('status', filters.status);
-    if (filters.campaign) query = query.eq('campaign', filters.campaign);
-    if (filters.company) query = query.eq('company', filters.company);
-    if (filters.tag) query = query.contains('tags', [filters.tag]);
-    if (filters.startDate) query = query.gte('created_at', filters.startDate);
+    // Aplicar filtros
+    if (filters.source) baseQuery = baseQuery.eq('source', filters.source);
+    if (filters.status) baseQuery = baseQuery.eq('status', filters.status);
+    if (filters.campaign) baseQuery = baseQuery.eq('campaign', filters.campaign);
+    if (filters.company) baseQuery = baseQuery.eq('company', filters.company);
+    if (filters.tag) baseQuery = baseQuery.contains('tags', [filters.tag]);
+    if (filters.startDate) baseQuery = baseQuery.gte('created_at', filters.startDate);
     if (filters.endDate) {
       const endDate = new Date(filters.endDate);
       endDate.setDate(endDate.getDate() + 1);
-      query = query.lt('created_at', endDate.toISOString().split('T')[0]);
+      baseQuery = baseQuery.lt('created_at', endDate.toISOString().split('T')[0]);
     }
     if (debouncedSearchTerm) {
-      query = query.or(`name.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%,phone.ilike.%${debouncedSearchTerm}%`);
+      baseQuery = baseQuery.or(`name.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%,phone.ilike.%${debouncedSearchTerm}%`);
     }
     
-    const { data, error } = await query;
+    const { data, error } = await baseQuery;
     if (error) throw error;
     
     // Adicionar campo is_student baseado na existência de registro na tabela students
-    return (data || []).map(lead => ({
+    const leadsWithStudentInfo = (data || []).map(lead => ({
       ...lead,
       is_student: !!(lead as any).students?.length
     }));
+    
+    return leadsWithStudentInfo;
   };
 
-  // useQuery para leads
+  // Fetch leads with pagination
   const {
-    data: leads = [],
+    data: paginatedData,
     isLoading: leadsLoading,
     isError: leadsError,
-    // refetch: refetchLeads, // refetchLeads não é mais necessário diretamente aqui, a invalidação cuidará disso
-  } = useQuery({
-    queryKey: ['leads', user?.id, filters, debouncedSearchTerm],
-    queryFn: fetchLeads,
-    enabled: !authLoading && !!user,
-    // refetchOnWindowFocus: false, // Opcional: desabilitar refetch em foco da janela se causar problemas
-  });
+    refetch
+  } = useLeadsPagination(
+    user?.id,
+    user?.role,
+    {
+      page: currentPage,
+      pageSize,
+      sortBy,
+      sortOrder,
+      filters: filters,
+      searchTerm: debouncedSearchTerm
+    }
+  );
+
+  // Extract data from pagination response
+  const leads = paginatedData?.data || [];
+  const totalCount = paginatedData?.totalCount || 0;
+  const totalPages = paginatedData?.totalPages || 0;
+  const hasNextPage = paginatedData?.hasNextPage || false;
+  const hasPreviousPage = paginatedData?.hasPreviousPage || false;
+
+  // Fetch lead stats for dashboard
+  const { data: leadStats } = useLeadsStats(
+    user?.id,
+    user?.role,
+    filters,
+    debouncedSearchTerm
+  );
 
   // Instanciar os hooks de mutação
   const createLeadMutation = useCreateLeadMutation(user?.id);
@@ -159,6 +218,24 @@ export default function LeadsPage() {
   const batchUpdateLeadsStatusMutation = useBatchUpdateLeadsStatusMutation(user?.id, user?.role);
   const batchUpdateLeadsSourceMutation = useBatchUpdateLeadsSourceMutation(user?.id, user?.role);
   const batchDeleteLeadsMutation = useBatchDeleteLeadsMutation(user?.id, user?.role);
+
+  // Pagination handlers
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    setSelectedIds([]); // Clear selection when changing pages
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(0); // Reset to first page
+    setSelectedIds([]); // Clear selection
+  };
+
+  const handleSortChange = (column: string, order: 'asc' | 'desc') => {
+    setSortBy(column);
+    setSortOrder(order);
+    setCurrentPage(0); // Reset to first page when sorting changes
+  };
 
   const handleCreateLead = async (leadData: InsertLead) => {
     try {
@@ -282,23 +359,45 @@ export default function LeadsPage() {
     queryClient.invalidateQueries({ queryKey: ['leads'] });
   };
 
-  // Get unique tags for filter
-  const availableTags = Array.from(
-    new Set((leads || []).flatMap(lead => lead.tags || []))
-  ).sort();
+  // Função para buscar todas as tags disponíveis (sem paginação)
+  const fetchAllTags = async () => {
+    if (!user) return [];
+    
+    let query = supabase
+      .from('leads')
+      .select('tags');
+      
+    if (user.role !== 'admin') {
+      query = query.eq('user_id', user.id);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    return Array.from(
+      new Set((data || []).flatMap(lead => lead.tags || []))
+    ).sort();
+  };
+  
+  // Query separada para tags (não precisa de paginação)
+  const { data: availableTags = [] } = useQuery({
+    queryKey: ['available-tags', user?.id],
+    queryFn: fetchAllTags,
+    enabled: !authLoading && !!user,
+  });
 
   // Função para exportar leads filtrados para CSV
   const handleExportCSV = () => {
     if (!leads || leads.length === 0) return;
     const csv = Papa.unparse(
-      leads.map(l => ({
+      leads.map((l: any) => ({
         name: l.name,
         email: l.email,
         phone: l.phone || '',
-        company: (l as any).company || '',
+        company: l.company || '',
         status: l.status,
         source: l.source || '',
-        is_student: (l as any).is_student ? 'true' : 'false',
+        is_student: l.is_student ? 'true' : 'false',
         tags: (l.tags || []).join(';'),
       }))
     );
@@ -616,7 +715,7 @@ export default function LeadsPage() {
   };
 
   const handleSelectAll = () => {
-    const allLeadIds = leads.map(lead => lead.id);
+    const allLeadIds = (leads || []).map((lead: any) => lead.id);
     setSelectedIds(allLeadIds);
     toast({ title: `${allLeadIds.length} leads selecionados`, variant: 'default' });
   };
@@ -666,6 +765,10 @@ export default function LeadsPage() {
               <Users className="w-4 h-4" />
               Leads
             </TabsTrigger>
+            <TabsTrigger value="kanban" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Kanban
+            </TabsTrigger>
             <TabsTrigger value="tags" className="flex items-center gap-2">
               <Tag className="w-4 h-4" />
               Gerenciar Tags
@@ -679,7 +782,7 @@ export default function LeadsPage() {
                 <Upload className="w-4 h-4 mr-2" />
                 Importar
               </Button>
-              <Button variant="outline" size="sm" disabled={leads.length === 0} onClick={handleExportCSV}>
+              <Button variant="outline" size="sm" disabled={!leads || leads.length === 0} onClick={handleExportCSV}>
                 <Download className="w-4 h-4 mr-2" />
                 Exportar
               </Button>
@@ -714,7 +817,7 @@ export default function LeadsPage() {
             {selectedIds.length > 0 && (
               <BatchOperations
                 selectedCount={selectedIds.length}
-                totalCount={leads.length}
+                totalCount={leads?.length || 0}
                 onClearSelection={() => setSelectedIds([])}
                 onSelectAll={handleSelectAll}
                 onBatchStatusUpdate={handleBatchStatusUpdate}
@@ -723,18 +826,65 @@ export default function LeadsPage() {
               />
             )}
 
+
+
             {/* Table */}
-            <LeadTable
-              leads={leads}
-              loading={false}
+            {!leadsLoading && (!leads || leads.length === 0) ? (
+              <div className="text-center py-12">
+                <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-4 text-lg font-semibold">Nenhum lead encontrado</h3>
+                <p className="mt-2 text-muted-foreground">
+                  {Object.values(filters).some(f => f) || debouncedSearchTerm 
+                    ? 'Tente ajustar os filtros ou termo de busca.' 
+                    : 'Comece criando seu primeiro lead.'}
+                </p>
+                {!Object.values(filters).some(f => f) && !debouncedSearchTerm && (
+                  <Button
+                    className="mt-4"
+                    onClick={() => {
+                      setSelectedLead(null);
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    Criar primeiro lead
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <LeadTable
+              leads={leads || []}
+              loading={leadsLoading}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
               onEdit={handleEditLead}
               onDelete={handleDeleteDialogOpen}
               onView={handleViewLead}
+              totalCount={totalCount}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalPages={totalPages}
+              hasNextPage={hasNextPage}
+              hasPreviousPage={hasPreviousPage}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={handleSortChange}
             />
+            )}
+
+
           </TabsContent>
           
+          <TabsContent value="kanban">
+              <KanbanViewDynamic 
+                leads={leads || []} 
+                onUpdateLead={handleKanbanUpdate} 
+                stats={leadStats || { totalCount: 0, statusCounts: {} }}
+              />
+            </TabsContent>
+
           <TabsContent value="tags">
             <TagManagement />
           </TabsContent>

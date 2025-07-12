@@ -89,6 +89,19 @@ interface LeadTableProps {
   onEdit: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
   onView: (lead: Lead) => void;
+  // Paginação do backend
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  // Ordenação
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
+  onSortChange: (sortBy: string, sortOrder: 'asc' | 'desc') => void;
 }
 
 export default function LeadTable({
@@ -99,44 +112,27 @@ export default function LeadTable({
   onEdit,
   onDelete,
   onView,
+  totalCount,
+  currentPage,
+  pageSize,
+  totalPages,
+  hasNextPage,
+  hasPreviousPage,
+  onPageChange,
+  onPageSizeChange,
+  sortBy,
+  sortOrder,
+  onSortChange,
 }: LeadTableProps) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  // Ordenação
-  const [sortBy, setSortBy] = useState<string>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Função para ordenar os leads
-  const sortedLeads = useMemo(() => {
-    const sorted = [...leads];
-    sorted.sort((a, b) => {
-      let aValue = a[sortBy as keyof Lead];
-      let bValue = b[sortBy as keyof Lead];
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortOrder === 'asc'
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
-      }
-      // Para datas (created_at)
-      if (sortBy === 'created_at' && typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortOrder === 'asc'
-          ? new Date(aValue).getTime() - new Date(bValue).getTime()
-          : new Date(bValue).getTime() - new Date(aValue).getTime();
-      }
-      return 0;
-    });
-    return sorted;
-  }, [leads, sortBy, sortOrder]);
-
-  // Atualizar página ao ordenar
-  useEffect(() => { setPage(0); }, [sortBy, sortOrder]);
+  // Os leads já vêm ordenados e paginados do backend
 
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
     if (checked === true) {
-      const newSelectedIds = paginatedLeads.map((lead) => lead.id);
+      const newSelectedIds = leads.map((lead) => lead.id);
       onSelectionChange(Array.from(new Set([...selectedIds, ...newSelectedIds])));
     } else {
-      const pageIds = paginatedLeads.map((lead) => lead.id);
+      const pageIds = leads.map((lead) => lead.id);
       onSelectionChange(selectedIds.filter(id => !pageIds.includes(id)));
     }
   };
@@ -150,12 +146,16 @@ export default function LeadTable({
   };
 
   const handleChangePage = (newPage: number) => {
-    setPage(newPage);
+    onPageChange(newPage);
   };
 
   const handleChangeRowsPerPage = (value: string) => {
-    setRowsPerPage(parseInt(value, 10));
-    setPage(0);
+    onPageSizeChange(parseInt(value, 10));
+  };
+
+  const handleSort = (column: string) => {
+    const newSortOrder = sortBy === column && sortOrder === 'asc' ? 'desc' : 'asc';
+    onSortChange(column, newSortOrder);
   };
 
   const getStatusBadgeVariant = (status: string): BadgeProps["variant"] => {
@@ -178,10 +178,8 @@ export default function LeadTable({
     }
   };
 
-  const paginatedLeads = sortedLeads.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-
-  const isAllOnPageSelected = paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedIds.includes(lead.id));
-  const isSomeOnPageSelected = paginatedLeads.some(lead => selectedIds.includes(lead.id));
+  const isAllOnPageSelected = leads.length > 0 && leads.every(lead => selectedIds.includes(lead.id));
+  const isSomeOnPageSelected = leads.some(lead => selectedIds.includes(lead.id));
   const selectAllCheckedState = isAllOnPageSelected ? true : isSomeOnPageSelected ? 'indeterminate' : false;
 
   // Customização de colunas
@@ -254,10 +252,7 @@ export default function LeadTable({
                 {visibleColumns.includes('name') && (
                   <TableHead
                     className="cursor-pointer select-none"
-                    onClick={() => {
-                      setSortBy('name');
-                      setSortOrder(sortBy === 'name' && sortOrder === 'asc' ? 'desc' : 'asc');
-                    }}
+                    onClick={() => handleSort('name')}
                   >
                     Nome {sortBy === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </TableHead>
@@ -265,10 +260,7 @@ export default function LeadTable({
                 {visibleColumns.includes('email') && (
                   <TableHead
                     className="cursor-pointer select-none"
-                    onClick={() => {
-                      setSortBy('email');
-                      setSortOrder(sortBy === 'email' && sortOrder === 'asc' ? 'desc' : 'asc');
-                    }}
+                    onClick={() => handleSort('email')}
                   >
                     Email {sortBy === 'email' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </TableHead>
@@ -276,10 +268,7 @@ export default function LeadTable({
                 {visibleColumns.includes('phone') && (
                   <TableHead
                     className="cursor-pointer select-none"
-                    onClick={() => {
-                      setSortBy('phone');
-                      setSortOrder(sortBy === 'phone' && sortOrder === 'asc' ? 'desc' : 'asc');
-                    }}
+                    onClick={() => handleSort('phone')}
                   >
                     Telefone {sortBy === 'phone' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </TableHead>
@@ -287,10 +276,7 @@ export default function LeadTable({
                 {visibleColumns.includes('company') && (
                   <TableHead
                     className="cursor-pointer select-none"
-                    onClick={() => {
-                      setSortBy('company');
-                      setSortOrder(sortBy === 'company' && sortOrder === 'asc' ? 'desc' : 'asc');
-                    }}
+                    onClick={() => handleSort('company')}
                   >
                     Empresa {sortBy === 'company' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </TableHead>
@@ -298,10 +284,7 @@ export default function LeadTable({
                 {visibleColumns.includes('status') && (
                   <TableHead
                     className="cursor-pointer select-none"
-                    onClick={() => {
-                      setSortBy('status');
-                      setSortOrder(sortBy === 'status' && sortOrder === 'asc' ? 'desc' : 'asc');
-                    }}
+                    onClick={() => handleSort('status')}
                   >
                     Status {sortBy === 'status' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </TableHead>
@@ -309,10 +292,7 @@ export default function LeadTable({
                 {visibleColumns.includes('source') && (
                   <TableHead
                     className="cursor-pointer select-none"
-                    onClick={() => {
-                      setSortBy('source');
-                      setSortOrder(sortBy === 'source' && sortOrder === 'asc' ? 'desc' : 'asc');
-                    }}
+                    onClick={() => handleSort('source')}
                   >
                     Origem {sortBy === 'source' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </TableHead>
@@ -323,10 +303,7 @@ export default function LeadTable({
                 {visibleColumns.includes('created_at') && (
                   <TableHead
                     className="cursor-pointer select-none"
-                    onClick={() => {
-                      setSortBy('created_at');
-                      setSortOrder(sortBy === 'created_at' && sortOrder === 'asc' ? 'desc' : 'asc');
-                    }}
+                    onClick={() => handleSort('created_at')}
                   >
                     Criado em {sortBy === 'created_at' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </TableHead>
@@ -335,7 +312,7 @@ export default function LeadTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedLeads.map((lead) => (
+              {leads.map((lead) => (
                 <TableRow
                   key={lead.id}
                   data-state={selectedIds.includes(lead.id) && "selected"}
@@ -447,36 +424,36 @@ export default function LeadTable({
       {/* Custom Pagination Controls */}
       <div className="flex items-center justify-between p-4 border-t">
         <div className="text-sm text-muted-foreground">
-          {selectedIds.length} de {leads.length} linha(s) selecionadas.
+          {selectedIds.length} de {totalCount.toLocaleString('pt-BR')} linha(s) selecionadas.
         </div>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <p className="text-sm font-medium">Linhas por página</p>
             <Select
-              value={`${rowsPerPage}`}
+              value={`${pageSize}`}
               onValueChange={handleChangeRowsPerPage}
             >
               <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue placeholder={rowsPerPage} />
+                <SelectValue placeholder={pageSize} />
               </SelectTrigger>
               <SelectContent side="top">
-                {[10, 20, 30, 40, 50].map((pageSize) => (
-                  <SelectItem key={pageSize} value={`${pageSize}`}>
-                    {pageSize}
+                {[10, 20, 30, 40, 50, 100].map((size) => (
+                  <SelectItem key={size} value={`${size}`}>
+                    {size}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="text-sm font-medium">
-            Página {page + 1} de {Math.ceil(leads.length / rowsPerPage)}
+            Página {currentPage + 1} de {totalPages.toLocaleString('pt-BR')} ({totalCount.toLocaleString('pt-BR')} leads)
           </div>
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               className="w-8 h-8 p-0"
               onClick={() => handleChangePage(0)}
-              disabled={page === 0}
+              disabled={!hasPreviousPage}
             >
               <span className="sr-only">Primeira página</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
@@ -484,8 +461,8 @@ export default function LeadTable({
             <Button
               variant="outline"
               className="w-8 h-8 p-0"
-              onClick={() => handleChangePage(page - 1)}
-              disabled={page === 0}
+              onClick={() => handleChangePage(currentPage - 1)}
+              disabled={!hasPreviousPage}
             >
               <span className="sr-only">Página anterior</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -493,8 +470,8 @@ export default function LeadTable({
             <Button
               variant="outline"
               className="w-8 h-8 p-0"
-              onClick={() => handleChangePage(page + 1)}
-              disabled={page >= Math.ceil(leads.length / rowsPerPage) - 1}
+              onClick={() => handleChangePage(currentPage + 1)}
+              disabled={!hasNextPage}
             >
               <span className="sr-only">Próxima página</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
@@ -502,8 +479,8 @@ export default function LeadTable({
             <Button
               variant="outline"
               className="w-8 h-8 p-0"
-              onClick={() => handleChangePage(Math.ceil(leads.length / rowsPerPage) - 1)}
-              disabled={page >= Math.ceil(leads.length / rowsPerPage) - 1}
+              onClick={() => handleChangePage(totalPages - 1)}
+              disabled={!hasNextPage}
             >
               <span className="sr-only">Última página</span>
                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
