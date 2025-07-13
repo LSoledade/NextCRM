@@ -20,6 +20,7 @@ export interface DashboardStats {
   pendingTasks: number;
   completedTasks: number;
   todaySessions: number;
+  newLeadsToday: number;
   conversionRate: number;
   sessionsPerStudent: number;
   leadsBySource: Record<string, number>;
@@ -36,15 +37,36 @@ export const useOptimizedDashboardStats = () => {
     table: T
   ): Promise<Database['public']['Tables'][T]['Row'][]> => {
     if (!userId) return [];
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .eq('user_id', userId);
-    if (error) {
-      console.error(`Erro ao buscar dados da tabela ${table}:`, error);
-      throw error;
+    
+    // Buscar todos os dados sem limitação (Supabase limita a 1000 por padrão)
+    // Vamos buscar em lotes para garantir que todos os dados sejam recuperados
+    let allData: Database['public']['Tables'][T]['Row'][] = [];
+    let from = 0;
+    const batchSize = 1000;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('user_id', userId)
+        .range(from, from + batchSize - 1);
+        
+      if (error) {
+        console.error(`Erro ao buscar dados da tabela ${table}:`, error);
+        throw error;
+      }
+      
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        from += batchSize;
+        hasMore = data.length === batchSize; // Se retornou menos que o batch size, não há mais dados
+      } else {
+        hasMore = false;
+      }
     }
-    return data || [];
+    
+    return allData;
   };
 
   const { data: leads, isLoading: isLoadingLeads, error: leadsError } = useQuery<Lead[]>({
@@ -88,6 +110,9 @@ export const useOptimizedDashboardStats = () => {
     const totalStudents = students.length;
     const newLeadsCount = leads.filter(lead => lead.status === 'New').length;
     const convertedLeads = leads.filter(lead => lead.status === 'Converted').length;
+    const newLeadsTodayCount = leads.filter(lead => 
+      lead.created_at && lead.created_at.startsWith(today)
+    ).length;
     const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
     const pendingTasks = tasks.filter(task => task.status !== 'Concluidas').length;
     const completedTasks = tasks.filter(task => task.status === 'Concluidas').length;
@@ -124,6 +149,7 @@ export const useOptimizedDashboardStats = () => {
       pendingTasks,
       completedTasks,
       todaySessions: todaySessionsCount,
+      newLeadsToday: newLeadsTodayCount,
       conversionRate,
       sessionsPerStudent,
       leadsBySource,

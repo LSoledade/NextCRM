@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -93,6 +93,23 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
       return new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch {
       return 'Data inválida';
+    }
+  };
+
+  const getStatusBadgeVariant = (status: string): BadgeProps["variant"] => {
+    switch (status) {
+      case 'New': return 'secondary';
+      case 'Contacted': return 'outline';
+      case 'Converted': return 'outline'; // Using outline as base for custom green styling
+      case 'Lost': return 'destructive';
+      default: return 'outline';
+    }
+  };
+
+  const getStatusBadgeClass = (status: string): string => {
+    switch (status) {
+      case 'Converted': return 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-700';
+      default: return '';
     }
   };
 
@@ -247,7 +264,12 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
             Detalhes do lead e informações de contato
           </SheetDescription>
           <div className="flex justify-start">
-            <Badge variant="secondary" className="mt-1">{lead?.status}</Badge>
+            <Badge 
+              variant={getStatusBadgeVariant(lead?.status || '')} 
+              className={cn("mt-1", getStatusBadgeClass(lead?.status || ''))}
+            >
+              {lead?.status}
+            </Badge>
           </div>
         </SheetHeader>
         <div className="flex justify-end mb-2">
@@ -285,7 +307,7 @@ export default function LeadSheet({ open, leadId, onOpenChange }: LeadSheetProps
                     <div>
                       <h3 className="mb-3 text-lg font-semibold">Informações do Sistema</h3>
                       <dl className="space-y-3">
-                        <div><dt className="text-sm font-medium text-muted-foreground">Status</dt><dd><Badge variant="secondary">{lead?.status}</Badge></dd></div>
+                        <div><dt className="text-sm font-medium text-muted-foreground">Status</dt><dd><Badge variant={getStatusBadgeVariant(lead?.status || '')} className={getStatusBadgeClass(lead?.status || '')}>{lead?.status}</Badge></dd></div>
                         <div><dt className="text-sm font-medium text-muted-foreground">Criado em</dt><dd className="text-sm">{formatDate(lead?.created_at)}</dd></div>
                         <div><dt className="text-sm font-medium text-muted-foreground">Última atualização</dt><dd className="text-sm">{formatDate(lead?.updated_at)}</dd></div>
                       </dl>

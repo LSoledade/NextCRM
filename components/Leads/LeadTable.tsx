@@ -162,9 +162,16 @@ export default function LeadTable({
     switch (status) {
       case 'New': return 'secondary'; // Using secondary for New for better differentiation
       case 'Contacted': return 'outline'; // Using outline for Contacted
-      case 'Converted': return 'default'; // Using default (primary color) for Converted
+      case 'Converted': return 'outline'; // Using outline as base for custom green styling
       case 'Lost': return 'destructive';
       default: return 'outline';
+    }
+  };
+
+  const getStatusBadgeClass = (status: string): string => {
+    switch (status) {
+      case 'Converted': return 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-700';
+      default: return '';
     }
   };
 
@@ -382,7 +389,12 @@ export default function LeadTable({
                   )}
                   {visibleColumns.includes('status') && (
                     <TableCell>
-                      <Badge variant={getStatusBadgeVariant(lead.status)}>{lead.status}</Badge>
+                      <Badge 
+                        variant={getStatusBadgeVariant(lead.status)}
+                        className={getStatusBadgeClass(lead.status)}
+                      >
+                        {lead.status}
+                      </Badge>
                     </TableCell>
                   )}
                   {visibleColumns.includes('source') && (
