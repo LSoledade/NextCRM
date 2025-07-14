@@ -40,9 +40,10 @@ export const DesktopLayout = ({
         "flex h-screen bg-background overflow-hidden app-layout-container",
         !isInitialized && "opacity-0"
       )}>
+
         {/* Desktop Sidebar */}
         <aside className={cn(
-          "flex flex-col transition-all duration-300 ease-out bg-background no-transform",
+          "flex flex-col transition-all duration-300 ease-out bg-background no-transform relative z-40",
           sidebarExpanded ? "w-60" : "w-[72px]"
         )}>
           <SidebarContent collapsed={!sidebarExpanded} />
@@ -51,8 +52,8 @@ export const DesktopLayout = ({
         {/* Desktop Main Area */}
         <div className="flex flex-1 min-w-0 no-transform">
           <div className="flex flex-col flex-1">
-            {/* Desktop Header */}
-            <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+            {/* Desktop Header - Fixed */}
+            <header className="fixed top-0 right-0 left-60 z-30 flex items-center justify-between h-16 px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
@@ -97,9 +98,9 @@ export const DesktopLayout = ({
             </header>
 
             {/* Desktop Main Content */}
-            <main className="flex-1 overflow-hidden bg-background">
+            <main className="flex-1 overflow-hidden bg-background pt-16">
               <div className="h-full p-4">
-                <div className="h-full main-content-container rounded-3xl shadow-xl overflow-hidden backdrop-blur-sm no-transform">
+                <div className="h-full main-content-container rounded-3xl shadow-xl overflow-hidden backdrop-blur-sm no-transform relative z-10">
                   <div className="h-full p-8 overflow-auto">
                     {children}
                   </div>

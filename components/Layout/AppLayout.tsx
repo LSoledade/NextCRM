@@ -43,18 +43,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <DesktopLayout
-      sidebarExpanded={sidebarExpanded}
-      handleSidebarToggle={handleSidebarToggle}
-      currentPageTitle={currentPageTitle}
-      user={user}
-      userInitials={userInitials}
-      handleLogout={handleLogout}
-      rightPanelVisible={rightPanelVisible}
-      handleRightPanelToggle={handleRightPanelToggle}
-      isInitialized={isInitialized}
-    >
-      {children}
-    </DesktopLayout>
+    <TooltipProvider>
+      <DesktopLayout
+        sidebarExpanded={sidebarExpanded}
+        handleSidebarToggle={handleSidebarToggle}
+        currentPageTitle={currentPageTitle}
+        user={user}
+        userInitials={userInitials}
+        handleLogout={handleLogout}
+        rightPanelVisible={rightPanelVisible}
+        handleRightPanelToggle={handleRightPanelToggle}
+        isInitialized={isInitialized}
+      >
+        {children}
+      </DesktopLayout>
+    </TooltipProvider>
   );
 }

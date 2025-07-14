@@ -119,12 +119,12 @@
   
   /* Garante que os tooltips tenham prioridade sobre outros elementos */
   [data-radix-tooltip-content] {
-    z-index: 90 !important;
+    z-index: 9999 !important;
   }
   
   /* Garante que os tooltips da sidebar tenham prioridade sobre o main content */
   .sidebar-container [data-radix-tooltip-content],
   aside [data-radix-tooltip-content] {
-    z-index: 100 !important;
+    z-index: 9999 !important;
   }
 }
