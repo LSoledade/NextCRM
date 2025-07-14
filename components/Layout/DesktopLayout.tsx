@@ -5,9 +5,10 @@ import { AnimatedToggleIcon } from './AnimatedToggleIcon';
 import { SidebarContent } from './SidebarContent';
 import { UserMenu } from './UserMenu';
 import WeatherWidget from '../ui/WeatherWidget';
-import RightSidebar from './RightSidebar';
+import RightSidebar, { RightSidebarContext } from './RightSidebar';
 import { Menu as MenuIcon, ChevronLeft } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { useState } from 'react';
 
 interface DesktopLayoutProps {
   sidebarExpanded: boolean;
@@ -20,6 +21,10 @@ interface DesktopLayoutProps {
   handleRightPanelToggle: (visible: boolean) => void;
   isInitialized: boolean;
   children: React.ReactNode;
+  // Novas props para contexto do RightSidebar
+  rightSidebarContext?: RightSidebarContext;
+  rightSidebarData?: any;
+  onRightSidebarClose?: () => void;
 }
 
 export const DesktopLayout = ({ 
@@ -32,8 +37,17 @@ export const DesktopLayout = ({
   rightPanelVisible, 
   handleRightPanelToggle, 
   isInitialized,
-  children 
+  children,
+  rightSidebarContext = 'default',
+  rightSidebarData,
+  onRightSidebarClose
 }: DesktopLayoutProps) => {
+  const handleRightSidebarClose = () => {
+    handleRightPanelToggle(false);
+    if (onRightSidebarClose) {
+      onRightSidebarClose();
+    }
+  };
   return (
     <TooltipProvider>
       <div className={cn(
@@ -114,6 +128,9 @@ export const DesktopLayout = ({
             <RightSidebar 
               isVisible={rightPanelVisible}
               onToggle={handleRightPanelToggle}
+              context={rightSidebarContext}
+              contextData={rightSidebarData}
+              onClose={handleRightSidebarClose}
             />
           )}
         </div>

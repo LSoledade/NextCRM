@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { menuItems } from './menuItems';
+import { RightSidebarContext } from './RightSidebar';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -11,6 +12,10 @@ export const useAppLayout = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
+  
+  // Estados para o contexto do RightSidebar
+  const [rightSidebarContext, setRightSidebarContext] = useState<RightSidebarContext>('default');
+  const [rightSidebarData, setRightSidebarData] = useState<any>(null);
   
   const { user, signOut } = useAuth();
   const router = useRouter();
@@ -92,6 +97,22 @@ export const useAppLayout = () => {
     localStorage.setItem('right-panel-visible', JSON.stringify(visible));
   }, []);
 
+  // Função para abrir o RightSidebar com contexto específico
+  const openRightSidebar = useCallback((context: RightSidebarContext, data?: any) => {
+    setRightSidebarContext(context);
+    setRightSidebarData(data);
+    setRightPanelVisible(true);
+    localStorage.setItem('right-panel-visible', JSON.stringify(true));
+  }, []);
+
+  // Função para fechar o RightSidebar e limpar contexto
+  const closeRightSidebar = useCallback(() => {
+    setRightPanelVisible(false);
+    setRightSidebarContext('default');
+    setRightSidebarData(null);
+    localStorage.setItem('right-panel-visible', JSON.stringify(false));
+  }, []);
+
   return {
     mobileOpen,
     setMobileOpen,
@@ -106,5 +127,10 @@ export const useAppLayout = () => {
     handleMobileToggle,
     handleLogout,
     handleRightPanelToggle,
+    // Novos retornos para contexto do RightSidebar
+    rightSidebarContext,
+    rightSidebarData,
+    openRightSidebar,
+    closeRightSidebar,
   };
 };

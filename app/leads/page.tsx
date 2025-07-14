@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Database } from '@/types/database';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useRightSidebar } from '@/contexts/RightSidebarContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import dynamic from 'next/dynamic';
 import AppLayout from '@/components/Layout/AppLayout';
@@ -22,7 +23,7 @@ import { useLeadsManager } from '@/hooks/useLeadsManager';
 import { useLeadImport } from '@/hooks/useLeadImport';
 import { Users, Tag, Columns3 } from 'lucide-react';
 
-const LeadSheet = dynamic(() => import('@/components/Leads/LeadSheet'), { ssr: false });
+// LeadSheet removido - agora usando RightSidebar
 const KanbanViewDynamic = dynamic(() => import('@/components/Leads/KanbanView'), { ssr: false });
 
 type Lead = Database['public']['Tables']['leads']['Row'] & {
@@ -31,10 +32,12 @@ type Lead = Database['public']['Tables']['leads']['Row'] & {
 type InsertLead = Database['public']['Tables']['leads']['Insert'];
 type UpdateLead = Database['public']['Tables']['leads']['Update'];
 
-export default function LeadsPage() {
+// Componente interno que usa o contexto do RightSidebar
+function LeadsPageContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const { openRightSidebar } = useRightSidebar();
   
   // Estados da aba ativa
   const [activeTab, setActiveTab] = useState('leads');
@@ -49,8 +52,8 @@ export default function LeadsPage() {
     batchDeleteDialogOpen,
     searchTerm,
     filters,
-    sheetOpen,
-    selectedLeadId,
+    // sheetOpen, // Removido
+    // selectedLeadId, // Removido
     
     // Dados
     leads,
@@ -71,8 +74,8 @@ export default function LeadsPage() {
     setBatchDeleteDialogOpen,
     setSearchTerm,
     setFilters,
-    setSheetOpen,
-    setSelectedLeadId,
+    // setSheetOpen, // Removido
+    // setSelectedLeadId, // Removido
     handleCreateLead,
     handleUpdateLead,
     handleDeleteLead,
@@ -87,7 +90,7 @@ export default function LeadsPage() {
     handleSelectAll,
     handleEditLead,
     handleDeleteDialogOpen,
-    handleViewLead,
+    // handleViewLead, // Removido pois vamos usar o RightSidebar
     handleKanbanUpdate,
     
     // Paginação
@@ -139,8 +142,7 @@ export default function LeadsPage() {
   }
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="leads" className="flex items-center gap-2">
@@ -215,7 +217,7 @@ export default function LeadsPage() {
                 onSelectionChange={setSelectedIds}
                 onEdit={handleEditLead}
                 onDelete={handleDeleteDialogOpen}
-                onView={handleViewLead}
+                onView={(lead) => openRightSidebar('lead', lead)}
                 totalCount={totalCount}
                 currentPage={currentPage}
                 pageSize={pageSize}
@@ -244,14 +246,7 @@ export default function LeadsPage() {
           </TabsContent>
         </Tabs>
         
-        <LeadSheet 
-          open={sheetOpen} 
-          leadId={selectedLeadId} 
-          onOpenChange={(open) => {
-            setSheetOpen(open);
-            if (!open) setSelectedLeadId(null);
-          }} 
-        />
+        {/* LeadSheet removido - agora usando RightSidebar */}
 
         <LeadDialog
           open={dialogOpen}
@@ -280,6 +275,14 @@ export default function LeadsPage() {
           onOpenChange={setImportDialogOpen}
         />
       </div>
+    );
+}
+
+// Componente principal exportado
+export default function LeadsPage() {
+  return (
+    <AppLayout>
+      <LeadsPageContent />
     </AppLayout>
   );
 }
