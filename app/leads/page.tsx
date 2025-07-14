@@ -88,6 +88,7 @@ export default function LeadsPage() {
     handleEditLead,
     handleDeleteDialogOpen,
     handleViewLead,
+    handleKanbanUpdate,
     
     // Paginação
     currentPage,
@@ -118,10 +119,6 @@ export default function LeadsPage() {
     if (!importing) {
       resetImportState();
     }
-  };
-
-  const handleKanbanUpdate = (leadId: string, newStatus: Lead['status']) => {
-    handleUpdateLead({ id: leadId, status: newStatus });
   };
 
   // Redireciona para login se não estiver autenticado e não está carregando
