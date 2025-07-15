@@ -109,7 +109,6 @@ export default function ScheduleCalendar() {
             startAccessor="start"
             endAccessor="end"
             style={{ height: 650, fontFamily: 'inherit' }}
-            eventPropGetter={eventStyleGetter}
             onSelectEvent={handleSelectEvent}
             onSelectSlot={handleSelectSlot}
             onNavigate={handleNavigate}
@@ -119,7 +118,6 @@ export default function ScheduleCalendar() {
             culture="pt-BR"
             defaultView={Views.MONTH}
             views={calendarViews}
-            className="rbc-calendar-custom"
           />
         </div>
         

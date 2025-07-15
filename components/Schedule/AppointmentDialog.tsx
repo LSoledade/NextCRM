@@ -22,11 +22,14 @@ import { format } from 'date-fns';
 import { useUsers } from '@/hooks/useUsers';
 import { useAppointmentMutations } from '@/hooks/useAppointmentMutations';
 import { toast } from '@/hooks/use-toast';
+import { useServices } from '@/hooks/useServices';
+import { MultiTeacherSelector } from './MultiTeacherSelector';
 
 // Zod schema for validation
 const appointmentSchema = z.object({
   studentId: z.string().min(1, "Selecione um aluno."),
-  teacherId: z.string().min(1, "Selecione um professor."),
+  teacherIds: z.array(z.string()).min(1, "Selecione pelo menos um professor."),
+  serviceId: z.string().min(1, "Selecione um serviço."),
   date: z.string().min(1, "A data é obrigatória."),
   time: z.string().min(1, "A hora é obrigatória."),
   isRecurring: z.boolean(),
@@ -49,12 +52,13 @@ const WEEKDAYS = [
 export default function AppointmentDialog({ isOpen, onClose, event, slot }: AppointmentDialogProps) {
   const { control, handleSubmit, reset, watch, formState: { errors } } = useForm({
     resolver: zodResolver(appointmentSchema),
-    defaultValues: { studentId: '', teacherId: '', date: '', time: '', isRecurring: false, recurringDays: [] }
+    defaultValues: { studentId: '', teacherIds: [], serviceId: '', date: '', time: '', isRecurring: false, recurringDays: [] }
   });
 
   const isRecurring = watch('isRecurring');
   const { users: students, isLoading: isLoadingStudents } = useUsers('student');
   const { users: teachers, isLoading: isLoadingTeachers } = useUsers('teacher');
+  const { services, isLoading: isLoadingServices } = useServices();
   const { createAppointment } = useAppointmentMutations();
 
   useEffect(() => {
@@ -63,6 +67,7 @@ export default function AppointmentDialog({ isOpen, onClose, event, slot }: Appo
       if (event) {
         initialData.studentId = event.resource?.student_id || '';
         initialData.teacherId = event.resource?.teacher_id || '';
+        initialData.serviceId = event.resource?.service_id || '';
         initialData.date = format(new Date(event.start), 'yyyy-MM-dd');
         initialData.time = format(new Date(event.start), 'HH:mm');
         initialData.isRecurring = event.resource?.type === 'recurring';
@@ -73,7 +78,7 @@ export default function AppointmentDialog({ isOpen, onClose, event, slot }: Appo
       }
       reset(initialData);
     } else {
-      reset({ studentId: '', teacherId: '', date: '', time: '', isRecurring: false, recurringDays: [] });
+      reset({ studentId: '', teacherIds: [], serviceId: '', date: '', time: '', isRecurring: false, recurringDays: [] });
     }
   }, [isOpen, event, slot, reset]);
 
@@ -127,25 +132,39 @@ export default function AppointmentDialog({ isOpen, onClose, event, slot }: Appo
 
             {/* Teacher Selection */}
             <div className="space-y-2">
-              <Label htmlFor="teacherId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                🏃‍♂️ Professor
+              <Controller name="teacherIds" control={control} render={({ field }) => (
+                <MultiTeacherSelector
+                  selectedTeacherIds={field.value}
+                  onTeacherChange={field.onChange}
+                  serviceId={watch('serviceId')}
+                  date={watch('date')}
+                  time={watch('time')}
+                  error={errors.teacherIds?.message}
+                />
+              )} />
+            </div>
+
+            {/* Service Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="serviceId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                🛠️ Serviço
               </Label>
-              <Controller name="teacherId" control={control} render={({ field }) => (
+              <Controller name="serviceId" control={control} render={({ field }) => (
                 <Select onValueChange={field.onChange} value={field.value}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione um professor" />
+                    <SelectValue placeholder="Selecione um serviço" />
                   </SelectTrigger>
                   <SelectContent>
-                    {!isLoadingTeachers && teachers.map(t => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.full_name}
+                    {!isLoadingServices && services && services.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )} />
-              {errors.teacherId && (
-                <p className="text-sm text-red-500 mt-1">{errors.teacherId.message}</p>
+              {errors.serviceId && (
+                <p className="text-sm text-red-500 mt-1">{errors.serviceId.message}</p>
               )}
             </div>
 
